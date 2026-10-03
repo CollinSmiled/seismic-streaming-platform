@@ -4,7 +4,7 @@ A real-time earthquake event platform being built around EMSC notifications, Kaf
 
 ## Current status
 
-The repository currently contains the Python API and React scaffolds plus a local Kafka/PostgreSQL Compose stack. The event pipeline and map are not connected yet.
+The repository has a fixture-to-Kafka-to-PostgreSQL pipeline, a historical read API, and a React map and event list. Live EMSC ingestion and push updates are future increments.
 
 ## Requirements
 
@@ -30,10 +30,11 @@ If port `5432` is unavailable on your machine, set `POSTGRES_PORT=15432` in `.en
 ```powershell
 cd backend
 uv sync --frozen --python 3.12
+$env:DATABASE_URL = 'postgresql://seismic:local-dev-only@127.0.0.1:5432/seismic'
 uv run --frozen uvicorn seismic_stream.api.app:app --reload
 ```
 
-The API liveness endpoint is `http://127.0.0.1:8000/health`.
+Set `DATABASE_URL` before starting the API to enable earthquake reads (see the processor setup below). The liveness endpoint is `http://127.0.0.1:8000/health`; historical endpoints are described in [the API reference](docs/api.md).
 
 ### PostgreSQL projection and Kafka processor
 
@@ -77,10 +78,12 @@ docker compose exec -T kafka /opt/kafka/bin/kafka-console-consumer.sh --bootstra
 ```powershell
 cd frontend
 npm ci
+Copy-Item .env.example .env.local
+# Edit .env.local and add your public Mapbox access token.
 npm run dev
 ```
 
-Vite prints the local frontend URL. The current page is a scaffold; the map is a later increment.
+Vite prints the local frontend URL and proxies `/api` requests to `http://127.0.0.1:8000`. Start the API and processor in separate terminals after applying the migration. The list and details work without a Mapbox token; the map needs a public token in `frontend/.env.local`. The token is exposed in the browser by design, so use a URL-restricted public token for deployment. The page uses a manual Refresh button until live updates arrive in a later increment.
 
 ## Checks
 
