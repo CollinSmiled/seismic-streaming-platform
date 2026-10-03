@@ -1,0 +1,1 @@
+"""EMSC event ingestion service."""
