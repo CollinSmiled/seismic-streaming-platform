@@ -80,5 +80,6 @@ jobs:
         working-directory: backend
         env:
           KAFKA_BOOTSTRAP_SERVERS: 127.0.0.1:9092
+          DATABASE_URL: postgresql://seismic:local-dev-only@127.0.0.1:5432/seismic
       - if: always()
         run: docker compose down -v

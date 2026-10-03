@@ -35,15 +35,29 @@ uv run --frozen uvicorn seismic_stream.api.app:app --reload
 
 The API liveness endpoint is `http://127.0.0.1:8000/health`.
 
-### Publish sample earthquakes
+### PostgreSQL projection and Kafka processor
 
-With Kafka running, create the topic from the repository root:
+Create both Kafka topics from the repository root before starting the processor:
 
 ```powershell
 docker compose exec -T kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --topic earthquake.events.v1 --partitions 1 --replication-factor 1
+docker compose exec -T kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --topic earthquake.events.v1.quarantine --partitions 1 --replication-factor 1
 ```
 
-Then publish the two frozen EMSC catalogue features from `backend`:
+From `backend`, apply the database migration and start the processor:
+
+```powershell
+cd backend
+$env:DATABASE_URL = 'postgresql://seismic:local-dev-only@127.0.0.1:5432/seismic'
+uv run --frozen alembic upgrade head
+uv run --frozen python -m seismic_stream.processor.worker
+```
+
+The processor keeps running and commits a Kafka offset only after the database write or quarantine publication succeeds. Use a separate terminal to publish fixtures. If you changed `POSTGRES_PORT`, change the port in `DATABASE_URL` too. The database stores one current row per EMSC ID; [persistence notes](docs/persistence.md) explain replay and revision behavior.
+
+### Publish sample earthquakes
+
+With Kafka running and the topics created, publish the two frozen EMSC catalogue features from `backend`:
 
 ```powershell
 cd backend
