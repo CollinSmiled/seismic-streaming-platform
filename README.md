@@ -35,6 +35,29 @@ uv run --frozen uvicorn seismic_stream.api.app:app --reload
 
 The API liveness endpoint is `http://127.0.0.1:8000/health`.
 
+### Publish sample earthquakes
+
+With Kafka running, create the topic from the repository root:
+
+```powershell
+docker compose exec -T kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --topic earthquake.events.v1 --partitions 1 --replication-factor 1
+```
+
+Then publish the two frozen EMSC catalogue features from `backend`:
+
+```powershell
+cd backend
+uv run --frozen python -m seismic_stream.ingestion.fixture_producer --fixture tests/fixtures/emsc_catalogue_capture.json --ingested-at 2026-10-03T17:00:00Z
+```
+
+The command reports success only after Kafka acknowledges both messages. Its timestamp is fixed for reproducible fixture output; live ingestion will use the actual observation time. The Kafka key is the EMSC `unid`. See [the event contract](docs/event-contract.md) for the fields and validation rules.
+
+To inspect the records, return to the repository root and run:
+
+```powershell
+docker compose exec -T kafka /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server kafka:19092 --topic earthquake.events.v1 --from-beginning --max-messages 2 --timeout-ms 10000 --formatter-property print.key=true
+```
+
 ### React frontend
 
 ```powershell
