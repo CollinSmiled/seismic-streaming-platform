@@ -9,6 +9,14 @@ const utcTime = (value: string) => new Intl.DateTimeFormat('en-GB', {
   dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC',
 }).format(new Date(value)) + ' UTC'
 
+function BrandMark() {
+  return <span className="brand-mark" aria-hidden="true">
+    <span className="brand-circle" />
+    <span className="brand-square" />
+    <span className="brand-triangle" />
+  </span>
+}
+
 function App() {
   const [events, setEvents] = useState<Earthquake[]>([])
   const [nextCursor, setNextCursor] = useState<string | null>(null)
@@ -51,14 +59,17 @@ function App() {
   return (
     <main className="app">
       <header className="app-header">
-        <h1>Seismic Streaming Platform</h1>
-        <button type="button" onClick={() => void load()} disabled={loading}>Refresh</button>
+        <div className="brand"><BrandMark /><h1>SEISMIC <span>STREAM</span></h1></div>
+        <div className="header-actions">
+          <span className="view-label">Earthquake catalogue</span>
+          <button type="button" className="action-button" onClick={() => void load()} disabled={loading}>Refresh data</button>
+        </div>
       </header>
       <div className="workspace">
         <section className="event-panel" aria-labelledby="events-heading">
           <div className="section-heading">
             <h2 id="events-heading">Earthquakes</h2>
-            <span>{events.length} shown</span>
+            <span className="event-count" aria-label={`${events.length} ${events.length === 1 ? 'event' : 'events'} shown`}>{events.length}</span>
           </div>
           {loading && events.length === 0 && <p role="status" className="panel-message">Loading earthquakes…</p>}
           {error && <p role="alert" className="panel-message error">{error}. Check that the API and PostgreSQL are running.</p>}
@@ -74,21 +85,26 @@ function App() {
           {nextCursor && <button type="button" className="load-more" disabled={loading} onClick={() => void load(nextCursor)}>{loading ? 'Loading…' : 'Load more'}</button>}
         </section>
         <section className="map-panel" aria-label="Earthquake map">
-          <Suspense fallback={<p className="panel-message">Loading map…</p>}>
-            <EarthquakeMap events={events} selectedId={selected?.event_id ?? null} onSelect={setSelectedId} />
-          </Suspense>
-          <div className="attribution">Earthquake data: <a href="https://www.seismicportal.eu/" target="_blank" rel="noreferrer">EMSC-CSEM SeismicPortal</a></div>
+          <div className="map-heading"><h2>Epicenter map</h2><span>Historical view</span></div>
+          <div className="map-viewport">
+            <Suspense fallback={<p className="panel-message">Loading map…</p>}>
+              <EarthquakeMap events={events} selectedId={selected?.event_id ?? null} onSelect={setSelectedId} />
+            </Suspense>
+            <div className="attribution">Earthquake data: <a href="https://www.seismicportal.eu/" target="_blank" rel="noreferrer">EMSC-CSEM SeismicPortal</a></div>
+          </div>
         </section>
         <aside className="detail-panel" aria-labelledby="detail-heading">
           <h2 id="detail-heading">Event details</h2>
-          {selected ? <dl>
-            <div><dt>Region</dt><dd>{selected.region || 'Unnamed region'}</dd></div>
-            <div><dt>Magnitude</dt><dd>{selected.magnitude === null ? 'Unknown' : `${selected.magnitude.toFixed(1)} ${selected.magnitude_type ?? ''}`}</dd></div>
+          {selected ? <><div className="detail-feature">
+            <span className="detail-value">{selected.magnitude === null ? '—' : selected.magnitude.toFixed(1)}</span>
+            <span className="detail-magnitude-label">Magnitude {selected.magnitude_type ?? ''}</span>
+            <strong>{selected.region || 'Unnamed region'}</strong>
+          </div><dl>
             <div><dt>Time</dt><dd>{utcTime(selected.event_time)}</dd></div>
             <div><dt>Coordinates</dt><dd>{selected.latitude.toFixed(3)}°, {selected.longitude.toFixed(3)}°</dd></div>
             <div><dt>Depth</dt><dd>{selected.depth_km === null ? 'Unknown' : `${selected.depth_km.toFixed(1)} km`}</dd></div>
             <div><dt>EMSC ID</dt><dd className="event-id">{selected.event_id}</dd></div>
-          </dl> : <p>Select an event to see its details.</p>}
+          </dl></> : <p>Select an event to see its details.</p>}
         </aside>
       </div>
     </main>

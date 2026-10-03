@@ -30,7 +30,7 @@ describe('App', () => {
 
   it('shows an API earthquake in the list and detail panel', async () => {
     render(<App />)
-    await waitFor(() => expect(screen.getByText('Test Region', { selector: 'strong' })).toBeDefined())
+    await waitFor(() => expect(screen.getAllByText('Test Region', { selector: 'strong' })).toHaveLength(2))
     expect(screen.getByText('M 5.2')).toBeDefined()
     expect(screen.getByText('10.500°, 20.250°')).toBeDefined()
     expect(screen.getByText('emsc-123')).toBeDefined()
@@ -41,7 +41,7 @@ describe('App', () => {
     vi.mocked(fetch).mockResolvedValueOnce({ ok: false, status: 503 } as Response)
     render(<App />)
     await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('503'))
-    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
-    await waitFor(() => expect(screen.getByText('Test Region', { selector: 'strong' })).toBeDefined())
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh data' }))
+    await waitFor(() => expect(screen.getAllByText('Test Region', { selector: 'strong' })).toHaveLength(2))
   })
 })
