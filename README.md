@@ -23,6 +23,8 @@ docker compose up -d --wait kafka postgres
 
 By default, the host can reach Kafka at `localhost:9092` and PostgreSQL at `localhost:5432`; `.env` can override those host ports. Containers on the Compose network will use `kafka:19092` and `postgres:5432`. Only the loopback interface exposes these ports to the host. `docker compose down` stops the services and keeps their named volumes.
 
+If port `5432` is unavailable on your machine, set `POSTGRES_PORT=15432` in `.env` and rerun `docker compose up -d --wait kafka postgres`. PostgreSQL will then be reachable from the host at `localhost:15432`; its container address stays `postgres:5432`.
+
 ### Python API
 
 ```powershell
