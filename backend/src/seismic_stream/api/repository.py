@@ -5,7 +5,7 @@ import binascii
 import json
 import re
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
@@ -34,6 +34,18 @@ class EarthquakeRead(BaseModel):
 class EarthquakePage(BaseModel):
     items: list[EarthquakeRead]
     next_cursor: str | None
+    latest_change_cursor: int
+
+
+class EarthquakeChange(BaseModel):
+    cursor: int
+    kind: Literal["created", "updated"]
+    event: EarthquakeRead
+
+
+class ChangePage(BaseModel):
+    items: list[EarthquakeChange]
+    next_cursor: int | None
 
 
 def encode_cursor(event: EarthquakeRead) -> str:
@@ -111,12 +123,52 @@ def list_earthquakes(
         + where
         + " ORDER BY event_time DESC, event_id DESC LIMIT %(fetch_limit)s"
     )
-    with pool.connection() as connection, connection.cursor(row_factory=dict_row) as db:
-        db.execute(statement, parameters)
-        rows = db.fetchall()
+    with pool.connection() as connection, connection.transaction():
+        connection.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
+        clock = connection.execute(
+            "SELECT last_cursor FROM earthquake_change_clock WHERE id = 1"
+        ).fetchone()
+        if clock is None:
+            raise RuntimeError("earthquake change clock is missing")
+        with connection.cursor(row_factory=dict_row) as db:
+            db.execute(statement, parameters)
+            rows = db.fetchall()
     events = [EarthquakeRead.model_validate(row) for row in rows[:limit]]
     next_cursor = encode_cursor(events[-1]) if len(rows) > limit else None
-    return EarthquakePage(items=events, next_cursor=next_cursor)
+    return EarthquakePage(
+        items=events, next_cursor=next_cursor, latest_change_cursor=clock[0]
+    )
+
+
+def list_changes(pool: ConnectionPool, *, after: int, limit: int) -> ChangePage:
+    with pool.connection() as connection, connection.cursor(row_factory=dict_row) as db:
+        db.execute(
+            """SELECT change_cursor, created_cursor, event_id, source, source_action,
+                      event_time, source_updated_at, ingested_at, latitude,
+                      longitude, depth_km, magnitude, magnitude_type, region,
+                      source_catalog, persisted_at
+               FROM earthquake_events WHERE change_cursor > %s
+               ORDER BY change_cursor ASC LIMIT %s""",
+            (after, limit + 1),
+        )
+        rows = db.fetchall()
+    items = [
+        EarthquakeChange(
+            cursor=row["change_cursor"],
+            kind="created" if row["created_cursor"] > after else "updated",
+            event=EarthquakeRead.model_validate(
+                {
+                    key: value
+                    for key, value in row.items()
+                    if key not in ("change_cursor", "created_cursor")
+                }
+            ),
+        )
+        for row in rows[:limit]
+    ]
+    return ChangePage(
+        items=items, next_cursor=items[-1].cursor if len(rows) > limit else None
+    )
 
 
 def get_earthquake(pool: ConnectionPool, event_id: str) -> EarthquakeRead | None:

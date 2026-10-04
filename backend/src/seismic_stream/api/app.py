@@ -10,16 +10,19 @@ from typing import Annotated
 import psycopg
 from fastapi import Depends, FastAPI, HTTPException, Path, Query, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from psycopg_pool import ConnectionPool, PoolTimeout
 
 from seismic_stream.api.repository import (
+    ChangePage,
     EarthquakePage,
     EarthquakeRead,
     decode_cursor,
     get_earthquake,
+    list_changes,
     list_earthquakes,
 )
+from seismic_stream.api.stream import change_stream
 
 
 def require_pool(request: Request) -> ConnectionPool:
@@ -140,6 +143,31 @@ def create_app(database_pool: ConnectionPool | None = None) -> FastAPI:
             raise HTTPException(
                 status_code=503, detail="Database is unavailable"
             ) from error
+
+    @api.get("/api/v1/earthquakes/changes", response_model=ChangePage)
+    def earthquake_changes(
+        pool: Annotated[ConnectionPool, Depends(require_pool)],
+        after: Annotated[int, Query(ge=0)] = 0,
+        limit: Annotated[int, Query(ge=1, le=200)] = 100,
+    ) -> ChangePage:
+        try:
+            return list_changes(pool, after=after, limit=limit)
+        except (psycopg.Error, PoolTimeout) as error:
+            raise HTTPException(
+                status_code=503, detail="Database is unavailable"
+            ) from error
+
+    @api.get("/api/v1/earthquakes/stream")
+    async def earthquake_stream(
+        request: Request,
+        pool: Annotated[ConnectionPool, Depends(require_pool)],
+        after: Annotated[int, Query(ge=0)] = 0,
+    ) -> StreamingResponse:
+        return StreamingResponse(
+            change_stream(request, pool, after=after),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
 
     @api.get("/api/v1/earthquakes/{event_id}", response_model=EarthquakeRead)
     def earthquake_detail(

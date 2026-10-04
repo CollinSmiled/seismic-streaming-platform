@@ -24,6 +24,18 @@ class EventStore:
     def write(self, event: EarthquakeEvent) -> bool:
         """Commit a newer revision; return False for duplicates or stale records."""
         with self.pool.connection() as connection, connection.transaction():
+            clock = connection.execute(
+                "SELECT last_cursor FROM earthquake_change_clock WHERE id = 1 FOR UPDATE"
+            ).fetchone()
+            if clock is None:
+                raise RuntimeError("earthquake change clock is missing")
+            existed = (
+                connection.execute(
+                    "SELECT 1 FROM earthquake_events WHERE event_id = %s",
+                    (event.event_id,),
+                ).fetchone()
+                is not None
+            )
             result = connection.execute(
                 """INSERT INTO earthquake_events (
                            event_id, source, source_action, event_time,
@@ -62,4 +74,26 @@ class EventStore:
                     "content_sha256": content_fingerprint(event),
                 },
             )
-            return result.rowcount > 0
+            if result.rowcount == 0:
+                return False
+            cursor = clock[0] + 1
+            connection.execute(
+                "UPDATE earthquake_change_clock SET last_cursor = %s WHERE id = 1",
+                (cursor,),
+            )
+            if existed:
+                connection.execute(
+                    "UPDATE earthquake_events SET change_cursor = %s WHERE event_id = %s",
+                    (cursor, event.event_id),
+                )
+            else:
+                connection.execute(
+                    """UPDATE earthquake_events
+                       SET change_cursor = %s, created_cursor = %s
+                       WHERE event_id = %s""",
+                    (cursor, cursor, event.event_id),
+                )
+            connection.execute(
+                "SELECT pg_notify('earthquake_changes', %s)", (str(cursor),)
+            )
+            return True
