@@ -75,7 +75,7 @@ With Kafka, PostgreSQL, the processor, and the API running, start another termin
 uv run --frozen python -m seismic_stream.ingestion.live
 ```
 
-The service reads EMSC's documented WebSocket, validates notifications through the same versioned contract as the fixture, and waits for Kafka acknowledgement before reading the next message. EMSC sends events when they are inserted or updated, so a notification cannot be scheduled for a demonstration. You can use `--url ws://...` with a local test feed. This first version exits if the WebSocket disconnects; reconnect and outage handling follow in the next increment.
+The service reads [EMSC's documented WebSocket](https://www.seismicportal.eu/realtime.html), validates notifications through the same versioned contract as the fixture, and waits for Kafka acknowledgement before reading the next message. It reconnects after WebSocket or Kafka failures with a delay capped at 30 seconds, and Ctrl+C stops it cleanly. EMSC sends events when they are inserted or updated, so a notification cannot be scheduled for a demonstration. You can use `--url ws://...` with a local test feed. [Ingestion notes](docs/ingestion.md) explain acknowledgement, backpressure, and the current recovery limit.
 
 To inspect the records, return to the repository root and run:
 
