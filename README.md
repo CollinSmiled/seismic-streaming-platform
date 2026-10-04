@@ -4,7 +4,7 @@ A real-time earthquake event platform being built around EMSC notifications, Kaf
 
 ## Current status
 
-The repository has a fixture-to-Kafka-to-PostgreSQL pipeline, a historical read API, and a React map and event list. Live EMSC ingestion and push updates are future increments.
+The repository has a fixture-to-Kafka-to-PostgreSQL pipeline, historical and live read APIs, and a React map and event list with live change notices. Live EMSC ingestion is a future increment.
 
 ## Requirements
 
@@ -34,7 +34,7 @@ $env:DATABASE_URL = 'postgresql://seismic:local-dev-only@127.0.0.1:5432/seismic'
 uv run --frozen uvicorn seismic_stream.api.app:app --reload
 ```
 
-Set `DATABASE_URL` before starting the API to enable earthquake reads (see the processor setup below). The liveness endpoint is `http://127.0.0.1:8000/health`; historical endpoints are described in [the API reference](docs/api.md).
+Set `DATABASE_URL` before starting the API to enable earthquake reads (see the processor setup below). The liveness endpoint is `http://127.0.0.1:8000/health`; historical, change, and SSE endpoints are described in [the API reference](docs/api.md).
 
 ### PostgreSQL projection and Kafka processor
 
@@ -83,7 +83,7 @@ Copy-Item .env.example .env.local
 npm run dev
 ```
 
-Vite prints the local frontend URL and proxies `/api` requests to `http://127.0.0.1:8000`. Start the API and processor in separate terminals after applying the migration. The list and details work without a Mapbox token; the map needs a public token in `frontend/.env.local`. The token is exposed in the browser by design, so use a URL-restricted public token for deployment. The page uses a manual Refresh button until live updates arrive in a later increment.
+Vite prints the local frontend URL and proxies `/api` requests to `http://127.0.0.1:8000`. Start the API and processor in separate terminals after applying the migration. The list and details work without a Mapbox token; the map needs a public token in `frontend/.env.local`. The token is exposed in the browser by design, so use a URL-restricted public token for deployment. Selecting an earthquake in the list centers the map. New committed earthquakes produce a dismissible notice; revisions update the existing event. The browser catches up after reconnect, while Refresh data remains available for manual recovery.
 
 ## Checks
 

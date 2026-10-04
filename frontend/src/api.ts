@@ -18,6 +18,18 @@ export interface Earthquake {
 export interface EarthquakePage {
   items: Earthquake[]
   next_cursor: string | null
+  latest_change_cursor: number
+}
+
+export interface EarthquakeChange {
+  cursor: number
+  kind: 'created' | 'updated'
+  event: Earthquake
+}
+
+export interface ChangePage {
+  items: EarthquakeChange[]
+  next_cursor: number | null
 }
 
 export async function fetchEarthquakes(cursor?: string, signal?: AbortSignal): Promise<EarthquakePage> {
@@ -26,4 +38,11 @@ export async function fetchEarthquakes(cursor?: string, signal?: AbortSignal): P
   const response = await fetch(`/api/v1/earthquakes?${query}`, { signal })
   if (!response.ok) throw new Error(`Earthquake request failed (${response.status})`)
   return response.json() as Promise<EarthquakePage>
+}
+
+export async function fetchChanges(after: number, signal?: AbortSignal): Promise<ChangePage> {
+  const query = new URLSearchParams({ after: String(after), limit: '100' })
+  const response = await fetch(`/api/v1/earthquakes/changes?${query}`, { signal })
+  if (!response.ok) throw new Error(`Change request failed (${response.status})`)
+  return response.json() as Promise<ChangePage>
 }

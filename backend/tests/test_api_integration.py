@@ -2,7 +2,7 @@
 
 import os
 from collections.abc import Iterator
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import cast
 from urllib.parse import urlsplit, urlunsplit
@@ -18,6 +18,7 @@ from psycopg import sql
 from psycopg_pool import ConnectionPool
 
 from seismic_stream.api.app import create_app
+from seismic_stream.api.stream import change_stream
 from seismic_stream.ingestion.fixture_producer import load_fixture
 from seismic_stream.processor.store import EventStore
 
@@ -162,3 +163,122 @@ def test_unconfigured_database_returns_service_unavailable(
         assert client.get("/health").status_code == 200
         response = client.get("/api/v1/earthquakes")
     assert response.status_code == 503
+
+
+@pytest.mark.integration
+def test_change_cursor_creation_revision_and_failed_write(
+    api_client: TestClient,
+) -> None:
+    pool = cast(FastAPI, api_client.app).state.pool
+    store = EventStore(pool)
+    sample = load_fixture(CAPTURE, ingested_at=datetime(2026, 10, 3, 17, tzinfo=UTC))[0]
+    event = sample.model_copy(update={"event_id": "event-new"})
+    initial = api_client.get("/api/v1/earthquakes").json()
+    assert initial["latest_change_cursor"] == 4
+    assert store.write(event)
+    assert event.source_updated_at is not None
+    revised = event.model_copy(
+        update={
+            "source_updated_at": event.source_updated_at + timedelta(seconds=1),
+            "magnitude": 6.1,
+        }
+    )
+    assert store.write(revised)
+    assert not store.write(event)
+
+    # A client at cursor 4 still learns that this is a new event, even after a revision.
+    changes = api_client.get("/api/v1/earthquakes/changes", params={"after": 4})
+    assert changes.status_code == 200
+    assert [
+        (item["cursor"], item["kind"], item["event"]["magnitude"])
+        for item in changes.json()["items"]
+    ] == [(6, "created", 6.1)]
+    assert changes.json()["next_cursor"] is None
+    after_creation = api_client.get("/api/v1/earthquakes/changes", params={"after": 5})
+    assert after_creation.json()["items"][0]["kind"] == "updated"
+
+    with pytest.raises(psycopg.errors.CheckViolation):
+        store.write(event.model_copy(update={"event_id": "invalid", "latitude": 91}))
+    assert api_client.get("/api/v1/earthquakes").json()["latest_change_cursor"] == 6
+    assert (
+        api_client.get("/api/v1/earthquakes/changes", params={"after": 6}).json()[
+            "items"
+        ]
+        == []
+    )
+    for parameters in ({"after": -1}, {"limit": 0}, {"limit": 201}):
+        assert (
+            api_client.get("/api/v1/earthquakes/changes", params=parameters).status_code
+            == 422
+        )
+
+
+@pytest.mark.integration
+def test_change_pagination_and_committed_notification(api_client: TestClient) -> None:
+    pool = cast(FastAPI, api_client.app).state.pool
+    first = api_client.get(
+        "/api/v1/earthquakes/changes", params={"after": 0, "limit": 2}
+    ).json()
+    second = api_client.get(
+        "/api/v1/earthquakes/changes",
+        params={"after": first["next_cursor"], "limit": 2},
+    ).json()
+    assert [item["cursor"] for item in first["items"] + second["items"]] == [1, 2, 3, 4]
+    assert second["next_cursor"] is None
+
+    sample = load_fixture(CAPTURE, ingested_at=datetime(2026, 10, 3, 17, tzinfo=UTC))[0]
+    with psycopg.connect(pool.conninfo, autocommit=True) as listener:
+        listener.execute("LISTEN earthquake_changes")
+        assert EventStore(pool).write(
+            sample.model_copy(update={"event_id": "notified"})
+        )
+        assert [
+            notice.payload for notice in listener.notifies(timeout=2, stop_after=1)
+        ] == ["5"]
+        assert not EventStore(pool).write(
+            sample.model_copy(update={"event_id": "notified"})
+        )
+        assert list(listener.notifies(timeout=0.1, stop_after=1)) == []
+
+
+@pytest.mark.integration
+def test_sse_replays_committed_changes(api_client: TestClient) -> None:
+    import asyncio
+    import json
+
+    from fastapi import Request
+
+    pool = cast(FastAPI, api_client.app).state.pool
+
+    class ConnectedRequest:
+        disconnected = False
+
+        async def is_disconnected(self) -> bool:
+            return self.disconnected
+
+    async def read_stream() -> None:
+        request = ConnectedRequest()
+        stream = change_stream(cast(Request, request), pool, after=3)
+        try:
+            assert await anext(stream) == ": connected\n\n"
+            message = await anext(stream)
+            assert message.startswith("id: 4\nevent: earthquake\ndata: ")
+            payload = json.loads(message.split("data: ", 1)[1])
+            assert payload["event"]["event_id"] == "event-d"
+            pending = asyncio.create_task(anext(stream))
+            sample = load_fixture(
+                CAPTURE, ingested_at=datetime(2026, 10, 3, 17, tzinfo=UTC)
+            )[0]
+            assert await asyncio.to_thread(
+                EventStore(pool).write,
+                sample.model_copy(update={"event_id": "live-new"}),
+            )
+            live_message = await asyncio.wait_for(pending, timeout=5)
+            assert live_message.startswith("id: 5\nevent: earthquake\ndata: ")
+            request.disconnected = True
+            with pytest.raises(StopAsyncIteration):
+                await anext(stream)
+        finally:
+            await stream.aclose()
+
+    asyncio.run(read_stream())
