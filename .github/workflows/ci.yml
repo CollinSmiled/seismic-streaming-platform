@@ -81,5 +81,15 @@ jobs:
         env:
           KAFKA_BOOTSTRAP_SERVERS: 127.0.0.1:9092
           DATABASE_URL: postgresql://seismic:local-dev-only@127.0.0.1:5432/seismic
+      - run: docker compose run --rm --no-deps --entrypoint promtool prometheus check config /etc/prometheus/prometheus.yml
+      - run: docker compose run --rm --no-deps --entrypoint promtool prometheus check rules /etc/prometheus/alerts.yml
+      - run: docker compose run --rm --no-deps --entrypoint promtool prometheus test rules /etc/prometheus/rules.test.yml
+      - run: docker compose up -d --wait prometheus grafana
+      - name: Start API for scrape smoke check
+        run: uv run --frozen uvicorn seismic_stream.api.app:app --host 0.0.0.0 --port 8000 > /tmp/seismic-api.log 2>&1 &
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://seismic:local-dev-only@127.0.0.1:5432/seismic
+      - run: python scripts/verify_observability.py
       - if: always()
         run: docker compose down -v
