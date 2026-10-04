@@ -4,7 +4,7 @@ A real-time earthquake event platform being built around EMSC notifications, Kaf
 
 ## Current status
 
-The repository has fixture and live EMSC input to Kafka, a PostgreSQL projection, historical and live read APIs, and a React map with live change notices.
+The repository has fixture and live EMSC input to Kafka, FDSN gap recovery, a PostgreSQL projection, historical and live read APIs, and a React map with live change notices.
 
 ## Requirements
 
@@ -76,6 +76,17 @@ uv run --frozen python -m seismic_stream.ingestion.live
 ```
 
 The service reads [EMSC's documented WebSocket](https://www.seismicportal.eu/realtime.html), validates notifications through the same versioned contract as the fixture, and waits for Kafka acknowledgement before reading the next message. It reconnects after WebSocket or Kafka failures with a delay capped at 30 seconds, and Ctrl+C stops it cleanly. EMSC sends events when they are inserted or updated, so a notification cannot be scheduled for a demonstration. You can use `--url ws://...` with a local test feed. [Ingestion notes](docs/ingestion.md) explain acknowledgement, backpressure, and the current recovery limit.
+
+### Recover missed notifications
+
+Run the FDSN reconciliation worker in another `backend` terminal after applying the latest migration:
+
+```powershell
+$env:DATABASE_URL = 'postgresql://seismic:local-dev-only@127.0.0.1:5432/seismic'
+uv run --frozen python -m seismic_stream.ingestion.reconcile
+```
+
+It scans [EMSC's FDSN catalogue](https://www.seismicportal.eu/fdsn-wsevent.html) every 60 seconds, starting one hour before its first scan and overlapping later scans by 15 minutes. It saves progress only after Kafka acknowledges the whole batch. `--once` runs a single scan for diagnosis. A result above the default 5,000-event limit leaves the checkpoint unchanged and reports an error; `--max-events` can raise the limit up to 19,999 within the response size bound. See [ingestion notes](docs/ingestion.md) for tradeoffs and limits.
 
 To inspect the records, return to the repository root and run:
 

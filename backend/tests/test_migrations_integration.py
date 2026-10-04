@@ -33,6 +33,9 @@ def test_fresh_migration_constraints_and_rollback(
                 assert database.execute(
                     "SELECT to_regclass('earthquake_events')"
                 ).fetchone() == ("earthquake_events",)
+                assert database.execute(
+                    "SELECT to_regclass('source_reconciliation_checkpoints')"
+                ).fetchone() == ("source_reconciliation_checkpoints",)
                 with pytest.raises(psycopg.errors.CheckViolation):
                     database.execute(
                         """INSERT INTO earthquake_events
