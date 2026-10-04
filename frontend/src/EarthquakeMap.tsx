@@ -39,10 +39,10 @@ export default function EarthquakeMap({ events, selectedId, onSelect }: Props) {
         type: 'circle',
         source: sourceId,
         paint: {
-          'circle-radius': ['case', ['get', 'selected'], 8, 6],
-          'circle-color': '#b45309',
-          'circle-stroke-color': ['case', ['get', 'selected'], '#451a03', '#ffffff'],
-          'circle-stroke-width': 2,
+          'circle-radius': ['case', ['get', 'selected'], 10, 7],
+          'circle-color': ['case', ['get', 'selected'], '#f0c020', '#d02020'],
+          'circle-stroke-color': '#121212',
+          'circle-stroke-width': 2.5,
         },
       })
       instance.on('click', layerId, (event) => {
