@@ -4,7 +4,7 @@ A real-time earthquake event platform being built around EMSC notifications, Kaf
 
 ## Current status
 
-The repository has a fixture-to-Kafka-to-PostgreSQL pipeline, historical and live read APIs, and a React map and event list with live change notices. Live EMSC ingestion is a future increment.
+The repository has fixture and live EMSC input to Kafka, a PostgreSQL projection, historical and live read APIs, and a React map with live change notices.
 
 ## Requirements
 
@@ -65,7 +65,17 @@ cd backend
 uv run --frozen python -m seismic_stream.ingestion.fixture_producer --fixture tests/fixtures/emsc_catalogue_capture.json --ingested-at 2026-10-03T17:00:00Z
 ```
 
-The command reports success only after Kafka acknowledges both messages. Its timestamp is fixed for reproducible fixture output; live ingestion will use the actual observation time. The Kafka key is the EMSC `unid`. See [the event contract](docs/event-contract.md) for the fields and validation rules.
+The command reports success only after Kafka acknowledges both messages. Its timestamp is fixed for reproducible fixture output; live ingestion uses the actual observation time. The Kafka key is the EMSC `unid`. See [the event contract](docs/event-contract.md) for the fields and validation rules.
+
+### Live EMSC notifications
+
+With Kafka, PostgreSQL, the processor, and the API running, start another terminal in `backend`:
+
+```powershell
+uv run --frozen python -m seismic_stream.ingestion.live
+```
+
+The service reads [EMSC's documented WebSocket](https://www.seismicportal.eu/realtime.html), validates notifications through the same versioned contract as the fixture, and waits for Kafka acknowledgement before reading the next message. It reconnects after WebSocket or Kafka failures with a delay capped at 30 seconds, and Ctrl+C stops it cleanly. EMSC sends events when they are inserted or updated, so a notification cannot be scheduled for a demonstration. You can use `--url ws://...` with a local test feed. [Ingestion notes](docs/ingestion.md) explain acknowledgement, backpressure, and the current recovery limit.
 
 To inspect the records, return to the repository root and run:
 

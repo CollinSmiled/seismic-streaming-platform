@@ -1,0 +1,9 @@
+# Live EMSC ingestion
+
+The Python service connects to EMSC's documented `wss://www.seismicportal.eu/standing_order/websocket` endpoint. Each `create` or `update` envelope passes through the same parser and version 1 event contract as the captured catalogue fixture. The Kafka key is the EMSC `unid`; the processor's revision ordering and upsert handle duplicate delivery.
+
+The service keeps one Kafka producer and waits for the delivery callback before reading another WebSocket message. Kafka uses idempotent production and `acks=all`. This one-record-at-a-time choice favors simple, bounded memory over maximum throughput. The producer queue is capped at 1,000 records, the WebSocket receive buffer at four frames, each source message at 64 KiB, and Kafka acknowledgement waiting at 15 seconds. A full local queue is polled until it has room or the deadline expires.
+
+A dropped WebSocket or failed Kafka delivery closes the source connection, then the service reconnects after exponential delays from 1 to 30 seconds. Ctrl+C or SIGTERM stops new reads; an in-progress acknowledgement and shutdown flush have finite timeouts. Invalid source messages are logged without their raw content and skipped.
+
+An observed message may be retried after an uncertain acknowledgement, so duplicates are possible and the processor must remain idempotent. **End-to-end delivery is not guaranteed yet:** the WebSocket cannot replay notifications missed while Kafka is unavailable or the connection is down. The planned FDSN catalogue reconciliation increment will recover such gaps using an overlapping `updatedafter` checkpoint. A later observability increment will expose sustained failures as metrics and alerts. The deterministic tests use a local WebSocket and Kafka; a manual EMSC handshake confirms connectivity, but a real earthquake notification cannot be scheduled for CI.
