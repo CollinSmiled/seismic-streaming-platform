@@ -4,7 +4,7 @@ A real-time earthquake event platform being built around EMSC notifications, Kaf
 
 ## Current status
 
-The repository has fixture and live EMSC input to Kafka, FDSN gap recovery, a PostgreSQL projection, historical and live read APIs, a React map with live change notices, and local Prometheus/Grafana monitoring.
+The repository has fixture and live EMSC input to Kafka, FDSN gap recovery, a PostgreSQL projection, historical and live read APIs, a React map with live change notices, and local Prometheus/Grafana monitoring. The source-to-browser pipeline now has deterministic end-to-end and fault checks. Production packaging and deployment are still ahead.
 
 ## Requirements
 
@@ -119,6 +119,8 @@ npm run dev
 Vite prints the local frontend URL and proxies `/api` requests to `http://127.0.0.1:8000`. Start the API and processor in separate terminals after applying the migration. The list and details work without a Mapbox token; the map needs a public token in `frontend/.env.local`. The token is exposed in the browser by design, so use a URL-restricted public token for deployment. Selecting an earthquake in the list centers the map. New committed earthquakes produce a dismissible notice; revisions update the existing event. The browser catches up after reconnect, while Refresh data remains available for manual recovery.
 
 ## Checks
+
+For a clean-checkout rehearsal that includes Kafka, PostgreSQL, fault recovery, and a real Chromium browser, follow [the release-readiness runbook](docs/release-readiness.md). The backend integration tests need both `DATABASE_URL` and `KAFKA_BOOTSTRAP_SERVERS`; otherwise pytest skips them. [The storage schema](docs/schema.md), [event contract](docs/event-contract.md), and [API reference](docs/api.md) describe the data those checks exercise.
 
 ```powershell
 cd backend

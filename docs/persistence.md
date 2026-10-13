@@ -1,6 +1,6 @@
 # PostgreSQL projection and replay
 
-The processor turns the Kafka topic into a **current-event projection**: one PostgreSQL row per EMSC `event_id`. It does not keep every historical revision. The first migration creates `earthquake_events` with database checks for source, valid coordinates, finite depth and magnitude, and the content fingerprint. The origin-time index supports future historical reads.
+The processor turns the Kafka topic into a **current-event projection**: one PostgreSQL row per EMSC `event_id`. It does not keep every historical revision. The first migration creates `earthquake_events` with database checks for source, valid coordinates, finite depth and magnitude, and the content fingerprint. Later migrations add the ordered change cursor and FDSN checkpoint. The event-time index supports historical reads. See [the storage schema](schema.md) for the current tables.
 
 Run `uv run --frozen alembic upgrade head` from `backend` with `DATABASE_URL` set. The migration test creates an isolated database, applies the migration, checks constraints, rolls back to `base`, and applies it again. A downgrade drops the current-event table and its data; use it only when that loss is intended.
 

@@ -2,6 +2,10 @@
 
 Run the API with `DATABASE_URL` pointing at a migrated PostgreSQL database. All times use ISO 8601 with a UTC offset. The browser sends requests to `/api` through the Vite development proxy.
 
+## Operational endpoints
+
+`GET /health` returns `{"status":"ok"}` when the API process responds. `GET /ready` returns `{"status":"ready"}` only when PostgreSQL answers a short query; otherwise it returns 503. `GET /metrics` exports Prometheus text, including database readiness and request counts grouped by route template and status class. See [observability notes](observability.md) for worker endpoints and alert behavior.
+
 ## List events
 
 `GET /api/v1/earthquakes`
