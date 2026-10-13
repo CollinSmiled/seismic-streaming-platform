@@ -24,6 +24,7 @@ from psycopg_pool import ConnectionPool
 from seismic_stream.ingestion.fixture_producer import load_fixture, publish_events
 from seismic_stream.processor.store import EventStore, content_fingerprint
 from seismic_stream.processor.worker import process_record
+from tests.kafka_support import watermarks_when_ready
 
 TOPIC = "earthquake.events.v1.processor-test"
 CAPTURE = Path(__file__).parent / "fixtures" / "emsc_catalogue_capture.json"
@@ -62,7 +63,7 @@ def test_failed_write_replays_then_fixture_reaches_postgres(
         )
         try:
             partition = TopicPartition(TOPIC, 0)
-            _, high = consumer.get_watermark_offsets(partition, timeout=15)
+            _, high = watermarks_when_ready(consumer, partition)
             consumer.assign([TopicPartition(TOPIC, 0, high)])
             events = load_fixture(
                 CAPTURE, ingested_at=datetime(2026, 10, 3, 17, 0, tzinfo=UTC)

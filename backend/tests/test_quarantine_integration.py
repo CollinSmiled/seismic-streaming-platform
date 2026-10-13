@@ -21,6 +21,7 @@ from confluent_kafka.admin import AdminClient, NewTopic  # type: ignore[attr-def
 from seismic_stream.processor.quarantine import QUARANTINE_TOPIC, QuarantinePublisher
 from seismic_stream.processor.store import EventStore
 from seismic_stream.processor.worker import process_record
+from tests.kafka_support import watermarks_when_ready
 
 SOURCE_TOPIC = "earthquake.events.v1.poison-test"
 
@@ -57,9 +58,9 @@ def test_invalid_record_is_acknowledged_only_after_quarantine() -> None:
     try:
         source_partition = TopicPartition(SOURCE_TOPIC, 0)
         quarantine_partition = TopicPartition(QUARANTINE_TOPIC, 0)
-        _, source_high = source.get_watermark_offsets(source_partition, timeout=15)
-        _, quarantine_high = quarantine_reader.get_watermark_offsets(
-            quarantine_partition, timeout=15
+        _, source_high = watermarks_when_ready(source, source_partition)
+        _, quarantine_high = watermarks_when_ready(
+            quarantine_reader, quarantine_partition
         )
         source.assign([TopicPartition(SOURCE_TOPIC, 0, source_high)])
         quarantine_reader.assign([TopicPartition(QUARANTINE_TOPIC, 0, quarantine_high)])
