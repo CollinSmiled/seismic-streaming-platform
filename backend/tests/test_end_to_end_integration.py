@@ -29,6 +29,7 @@ from seismic_stream.ingestion.publisher import KafkaEventPublisher
 from seismic_stream.ingestion.reconcile import reconcile_once
 from seismic_stream.processor.store import EventStore
 from seismic_stream.processor.worker import process_record
+from tests.kafka_support import watermarks_when_ready
 
 CAPTURE = Path(__file__).parent / "fixtures" / "emsc_catalogue_capture.json"
 FEATURES = json.loads(CAPTURE.read_text(encoding="utf-8"))["features"]
@@ -115,7 +116,7 @@ def test_websocket_failure_replay_revision_and_fdsn_recovery(
                 publisher = KafkaEventPublisher(bootstrap, topic=topic)
                 try:
                     partition = TopicPartition(topic, 0)
-                    _, high = consumer.get_watermark_offsets(partition, timeout=15)
+                    _, high = watermarks_when_ready(consumer, partition)
                     consumer.assign([TopicPartition(topic, 0, high)])
                     with ConnectionPool(test_url, min_size=1, max_size=2) as pool:
                         store = FailOnceStore(pool)

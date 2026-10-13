@@ -17,6 +17,7 @@ from confluent_kafka.admin import AdminClient, NewTopic  # type: ignore[attr-def
 
 from seismic_stream.events import EarthquakeEvent
 from seismic_stream.ingestion.fixture_producer import load_fixture, publish_events
+from tests.kafka_support import watermarks_when_ready
 
 TOPIC = "earthquake.events.v1.integration"
 CAPTURE = Path(__file__).parent / "fixtures" / "emsc_catalogue_capture.json"
@@ -45,7 +46,7 @@ def test_fixture_records_can_be_consumed_from_kafka() -> None:
     )
     try:
         partition = TopicPartition(TOPIC, 0)
-        _, high = consumer.get_watermark_offsets(partition, timeout=15)
+        _, high = watermarks_when_ready(consumer, partition)
         consumer.assign([TopicPartition(TOPIC, 0, high)])
         events = load_fixture(
             CAPTURE, ingested_at=datetime(2026, 10, 3, 17, 0, tzinfo=UTC)

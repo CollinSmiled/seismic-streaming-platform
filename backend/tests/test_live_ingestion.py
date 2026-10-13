@@ -18,6 +18,7 @@ from seismic_stream.events import EarthquakeEvent
 from seismic_stream.ingestion.live import ingest_connection, ingest_forever
 from seismic_stream.ingestion.publisher import KafkaDeliveryError, KafkaEventPublisher
 from seismic_stream.observability import WORKER_FAILURES, WorkerStatus
+from tests.kafka_support import watermarks_when_ready
 
 CAPTURE = Path(__file__).parent / "fixtures" / "emsc_catalogue_capture.json"
 TOPIC = "earthquake.events.v1.live-test"
@@ -165,7 +166,7 @@ def test_websocket_event_is_acknowledged_and_read_from_kafka() -> None:
     )
     try:
         partition = TopicPartition(TOPIC, 0)
-        _, high = consumer.get_watermark_offsets(partition, timeout=15)
+        _, high = watermarks_when_ready(consumer, partition)
         consumer.assign([TopicPartition(TOPIC, 0, high)])
         publisher = KafkaEventPublisher(bootstrap, topic=TOPIC)
         try:
