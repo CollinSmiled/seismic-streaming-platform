@@ -22,6 +22,13 @@ from seismic_stream.ingestion.checkpoint import (
 )
 from seismic_stream.ingestion.emsc import SourceMessageError, parse_emsc_feature
 from seismic_stream.ingestion.publisher import KafkaDeliveryError, KafkaEventPublisher
+from seismic_stream.observability import (
+    RECONCILIATION_SCANS,
+    SOURCE_EVENTS,
+    WorkerStatus,
+    configure_logging,
+    start_worker_http,
+)
 
 FDSN_QUERY_URL = "https://www.seismicportal.eu/fdsnws/event/1/query"
 MAX_RESPONSE_BYTES = 16 * 1024 * 1024
@@ -115,6 +122,7 @@ def reconcile_once(
         except (SourceMessageError, ValidationError) as error:
             raise ReconciliationError("FDSN returned an invalid event") from error
         publish(event)
+        SOURCE_EVENTS.labels("fdsn", "acknowledged").inc()
         count += 1
     if stop is not None and stop.is_set():
         raise ReconciliationInterrupted("scan stopped before checkpoint commit")
@@ -131,6 +139,7 @@ def run_forever(
     interval_seconds: float = 60,
     max_events: int = DEFAULT_MAX_EVENTS,
     once: bool = False,
+    status: WorkerStatus | None = None,
 ) -> None:
     if interval_seconds <= 0:
         raise ValueError("interval_seconds must be positive")
@@ -148,6 +157,10 @@ def run_forever(
                         stop=stop,
                     )
                 LOGGER.info("FDSN reconciliation acknowledged %d events", count)
+                RECONCILIATION_SCANS.labels("success").inc()
+                if status is not None:
+                    status.succeeded()
+                    status.set_ready(True)
             except ReconciliationInterrupted:
                 break
             except (
@@ -157,6 +170,9 @@ def run_forever(
                 ReconciliationError,
                 KafkaDeliveryError,
             ) as error:
+                RECONCILIATION_SCANS.labels("failure").inc()
+                if status is not None:
+                    status.failed()
                 LOGGER.warning("FDSN reconciliation failed: %s", type(error).__name__)
                 if once:
                     raise
@@ -178,9 +194,7 @@ def main() -> None:
     database_url = os.getenv("DATABASE_URL")
     if not database_url:
         parser.error("DATABASE_URL is required")
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s"
-    )
+    configure_logging("reconciliation")
     stop = Event()
 
     def request_stop(_signal_number: int, _frame: object) -> None:
@@ -189,6 +203,8 @@ def main() -> None:
     signal.signal(signal.SIGINT, request_stop)
     signal.signal(signal.SIGTERM, request_stop)
     publisher = KafkaEventPublisher(args.bootstrap_server)
+    status = WorkerStatus("reconciliation")
+    monitor = start_worker_http(status, port=9103)
     try:
         run_forever(
             database_url,
@@ -198,8 +214,12 @@ def main() -> None:
             interval_seconds=args.interval_seconds,
             max_events=args.max_events,
             once=args.once,
+            status=status,
         )
     finally:
+        status.set_ready(False)
+        monitor.shutdown()
+        monitor.server_close()
         publisher.close()
 
 

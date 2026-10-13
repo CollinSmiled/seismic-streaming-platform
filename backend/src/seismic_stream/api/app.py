@@ -2,7 +2,7 @@
 
 import math
 import os
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Annotated
@@ -10,7 +10,8 @@ from typing import Annotated
 import psycopg
 from fastapi import Depends, FastAPI, HTTPException, Path, Query, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, Response, StreamingResponse
+from prometheus_client import CONTENT_TYPE_LATEST, Gauge, generate_latest
 from psycopg_pool import ConnectionPool, PoolTimeout
 
 from seismic_stream.api.repository import (
@@ -23,6 +24,11 @@ from seismic_stream.api.repository import (
     list_earthquakes,
 )
 from seismic_stream.api.stream import change_stream
+from seismic_stream.observability import API_REQUESTS, configure_logging
+
+API_DATABASE_READY = Gauge(
+    "seismic_api_database_ready", "Whether the API can query PostgreSQL"
+)
 
 
 def require_pool(request: Request) -> ConnectionPool:
@@ -38,9 +44,24 @@ def aware(value: datetime | None, name: str) -> datetime | None:
     return value
 
 
+def database_ready(pool: ConnectionPool | None) -> bool:
+    if pool is None:
+        API_DATABASE_READY.set(0)
+        return False
+    try:
+        with pool.connection(timeout=2) as connection:
+            connection.execute("SELECT 1")
+    except (psycopg.Error, PoolTimeout):
+        API_DATABASE_READY.set(0)
+        return False
+    API_DATABASE_READY.set(1)
+    return True
+
+
 def create_app(database_pool: ConnectionPool | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        configure_logging("api")
         if database_pool is not None:
             app.state.pool = database_pool
             yield
@@ -55,6 +76,17 @@ def create_app(database_pool: ConnectionPool | None = None) -> FastAPI:
             yield
 
     api = FastAPI(title="Seismic Streaming API", lifespan=lifespan)
+
+    @api.middleware("http")
+    async def count_requests(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        # Starlette resolves the route during call_next; use its template, never an ID.
+        response = await call_next(request)
+        route = request.scope.get("route")
+        path = getattr(route, "path", "unmatched")
+        API_REQUESTS.labels(path, f"{response.status_code // 100}xx").inc()
+        return response
 
     @api.exception_handler(RequestValidationError)
     def validation_error(
@@ -87,6 +119,18 @@ def create_app(database_pool: ConnectionPool | None = None) -> FastAPI:
     def health() -> dict[str, str]:
         """Report that the API process can respond to requests."""
         return {"status": "ok"}
+
+    @api.get("/ready")
+    def ready(request: Request) -> dict[str, str]:
+        pool: ConnectionPool | None = getattr(request.app.state, "pool", None)
+        if not database_ready(pool):
+            raise HTTPException(status_code=503, detail="Database is unavailable")
+        return {"status": "ready"}
+
+    @api.get("/metrics", include_in_schema=False)
+    def metrics(request: Request) -> Response:
+        database_ready(getattr(request.app.state, "pool", None))
+        return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
     @api.get("/api/v1/earthquakes", response_model=EarthquakePage)
     def historical_earthquakes(

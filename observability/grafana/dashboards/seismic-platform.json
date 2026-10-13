@@ -1,0 +1,86 @@
+{
+  "uid": "seismic-platform",
+  "title": "Seismic Platform / Operations",
+  "tags": ["seismic", "operations"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "15s",
+  "time": {"from": "now-1h", "to": "now"},
+  "annotations": {"list": []},
+  "panels": [
+    {
+      "id": 1,
+      "title": "Scrape targets up",
+      "type": "stat",
+      "gridPos": {"x": 0, "y": 0, "w": 12, "h": 6},
+      "datasource": {"type": "prometheus", "uid": "seismic-prometheus"},
+      "targets": [{"refId": "A", "expr": "up{job=~\"seismic-.*\"}", "legendFormat": "{{job}}", "instant": true}],
+      "fieldConfig": {"defaults": {"min": 0, "max": 1, "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}}, "overrides": []},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "orientation": "horizontal", "textMode": "value_and_name", "colorMode": "background", "graphMode": "none", "justifyMode": "auto"}
+    },
+    {
+      "id": 2,
+      "title": "API database and worker readiness",
+      "type": "stat",
+      "gridPos": {"x": 12, "y": 0, "w": 12, "h": 6},
+      "datasource": {"type": "prometheus", "uid": "seismic-prometheus"},
+      "targets": [
+        {"refId": "A", "expr": "seismic_api_database_ready{job=\"seismic-api\"}", "legendFormat": "PostgreSQL", "instant": true},
+        {"refId": "B", "expr": "seismic_worker_ready", "legendFormat": "{{service}}", "instant": true}
+      ],
+      "fieldConfig": {"defaults": {"min": 0, "max": 1, "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}}, "overrides": []},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "orientation": "horizontal", "textMode": "value_and_name", "colorMode": "background", "graphMode": "none", "justifyMode": "auto"}
+    },
+    {
+      "id": 3,
+      "title": "Acknowledged source events / minute",
+      "type": "timeseries",
+      "gridPos": {"x": 0, "y": 6, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "seismic-prometheus"},
+      "targets": [{"refId": "A", "expr": "sum by (source) (rate(seismic_source_events_total{outcome=\"acknowledged\"}[5m])) * 60", "legendFormat": "{{source}}"}],
+      "fieldConfig": {"defaults": {"unit": "short", "min": 0}, "overrides": []},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}
+    },
+    {
+      "id": 4,
+      "title": "Processor records / minute",
+      "type": "timeseries",
+      "gridPos": {"x": 12, "y": 6, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "seismic-prometheus"},
+      "targets": [{"refId": "A", "expr": "sum by (outcome) (rate(seismic_processor_records_total[5m])) * 60", "legendFormat": "{{outcome}}"}],
+      "fieldConfig": {"defaults": {"unit": "short", "min": 0}, "overrides": []},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}
+    },
+    {
+      "id": 5,
+      "title": "Worker failures / 5 minutes",
+      "type": "timeseries",
+      "gridPos": {"x": 0, "y": 14, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "seismic-prometheus"},
+      "targets": [{"refId": "A", "expr": "increase(seismic_worker_failures_total[5m])", "legendFormat": "{{service}}"}],
+      "fieldConfig": {"defaults": {"unit": "short", "min": 0}, "overrides": []},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}
+    },
+    {
+      "id": 6,
+      "title": "FDSN scans / 5 minutes",
+      "type": "timeseries",
+      "gridPos": {"x": 12, "y": 14, "w": 12, "h": 8},
+      "datasource": {"type": "prometheus", "uid": "seismic-prometheus"},
+      "targets": [{"refId": "A", "expr": "increase(seismic_reconciliation_scans_total[5m])", "legendFormat": "{{outcome}}"}],
+      "fieldConfig": {"defaults": {"unit": "short", "min": 0}, "overrides": []},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}
+    },
+    {
+      "id": 7,
+      "title": "Firing alerts",
+      "type": "stat",
+      "gridPos": {"x": 0, "y": 22, "w": 24, "h": 5},
+      "datasource": {"type": "prometheus", "uid": "seismic-prometheus"},
+      "targets": [{"refId": "A", "expr": "sum(ALERTS{alertstate=\"firing\"}) or vector(0)", "legendFormat": "Firing", "instant": true}],
+      "fieldConfig": {"defaults": {"min": 0, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}, "overrides": []},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "orientation": "horizontal", "textMode": "value_and_name", "colorMode": "background", "graphMode": "none", "justifyMode": "auto"}
+    }
+  ]
+}

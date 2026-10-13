@@ -1,0 +1,38 @@
+groups:
+  - name: seismic-services
+    rules:
+      - alert: SeismicTargetDown
+        expr: up{job=~"seismic-.*"} == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.job }} metrics endpoint is unreachable"
+      - alert: SeismicWorkerUnready
+        expr: seismic_worker_ready == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.service }} worker is unready"
+      - alert: SeismicApiDatabaseUnavailable
+        expr: seismic_api_database_ready{job="seismic-api"} == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: API cannot query PostgreSQL
+      - alert: SeismicWorkerRepeatedFailures
+        expr: increase(seismic_worker_failures_total[5m]) >= 3
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.service }} has repeated failures"
+      - alert: SeismicReconciliationStalled
+        expr: time() - seismic_worker_last_success_unixtime{service="reconciliation"} > 600 and seismic_worker_last_success_unixtime{service="reconciliation"} > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: FDSN reconciliation has not completed for ten minutes

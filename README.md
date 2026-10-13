@@ -4,7 +4,7 @@ A real-time earthquake event platform being built around EMSC notifications, Kaf
 
 ## Current status
 
-The repository has fixture and live EMSC input to Kafka, FDSN gap recovery, a PostgreSQL projection, historical and live read APIs, and a React map with live change notices.
+The repository has fixture and live EMSC input to Kafka, FDSN gap recovery, a PostgreSQL projection, historical and live read APIs, a React map with live change notices, and local Prometheus/Grafana monitoring.
 
 ## Requirements
 
@@ -31,10 +31,10 @@ If port `5432` is unavailable on your machine, set `POSTGRES_PORT=15432` in `.en
 cd backend
 uv sync --frozen --python 3.12
 $env:DATABASE_URL = 'postgresql://seismic:local-dev-only@127.0.0.1:5432/seismic'
-uv run --frozen uvicorn seismic_stream.api.app:app --reload
+uv run --frozen uvicorn seismic_stream.api.app:app --reload --host 0.0.0.0
 ```
 
-Set `DATABASE_URL` before starting the API to enable earthquake reads (see the processor setup below). The liveness endpoint is `http://127.0.0.1:8000/health`; historical, change, and SSE endpoints are described in [the API reference](docs/api.md).
+Set `DATABASE_URL` before starting the API to enable earthquake reads (see the processor setup below). The liveness endpoint is `http://127.0.0.1:8000/health`; `/ready` checks PostgreSQL, and `/metrics` exposes Prometheus data. Binding to `0.0.0.0` lets the local Prometheus container scrape the API. Historical, change, and SSE endpoints are described in [the API reference](docs/api.md).
 
 ### PostgreSQL projection and Kafka processor
 
@@ -93,6 +93,18 @@ To inspect the records, return to the repository root and run:
 ```powershell
 docker compose exec -T kafka /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server kafka:19092 --topic earthquake.events.v1 --from-beginning --max-messages 2 --timeout-ms 10000 --formatter-property print.key=true
 ```
+
+### Monitoring
+
+After starting the API and any workers you want to observe, run this from the repository root:
+
+```powershell
+docker compose up -d --wait prometheus grafana
+```
+
+Open Grafana at `http://127.0.0.1:3000` and sign in with the development credentials in `.env.example` (`admin` / `local-dev-only` by default). The **Seismic Platform / Operations** dashboard and Prometheus data source are provisioned automatically. Prometheus is at `http://127.0.0.1:9090`; its Targets and Alerts pages show scrape and alert state. Change the local Grafana password through `.env` before exposing the service beyond your machine. Prometheus and Grafana ports bind to loopback; the Python API and worker exporters bind to all interfaces for Docker's `host.docker.internal` bridge, so use a trusted local network or a host firewall.
+
+The processor, WebSocket ingester, and reconciliation worker serve `/health`, `/ready`, and `/metrics` on ports `9101`, `9102`, and `9103` respectively. Their logs are JSON lines with a service name and UTC timestamp. [Observability notes](docs/observability.md) explain the checks, metrics, alert behavior, and limits.
 
 ### React frontend
 

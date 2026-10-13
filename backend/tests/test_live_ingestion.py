@@ -17,6 +17,7 @@ from websockets.sync.server import ServerConnection, serve
 from seismic_stream.events import EarthquakeEvent
 from seismic_stream.ingestion.live import ingest_connection, ingest_forever
 from seismic_stream.ingestion.publisher import KafkaDeliveryError, KafkaEventPublisher
+from seismic_stream.observability import WORKER_FAILURES, WorkerStatus
 
 CAPTURE = Path(__file__).parent / "fixtures" / "emsc_catalogue_capture.json"
 TOPIC = "earthquake.events.v1.live-test"
@@ -102,6 +103,8 @@ def test_disconnect_reconnects_and_continues_reading() -> None:
 def test_kafka_outage_reconnects_without_unbounded_queue() -> None:
     stop = Event()
     attempts = 0
+    status = WorkerStatus("websocket_failure_test")
+    failures_before = WORKER_FAILURES.labels(status.service)._value.get()
 
     def publish(_event: EarthquakeEvent) -> None:
         nonlocal attempts
@@ -120,10 +123,13 @@ def test_kafka_outage_reconnects_without_unbounded_queue() -> None:
                 stop=stop,
                 retry_min_seconds=0.01,
                 retry_max_seconds=0.05,
+                status=status,
             )
         finally:
             watchdog.cancel()
     assert attempts == 2
+    assert not status.ready
+    assert WORKER_FAILURES.labels(status.service)._value.get() == failures_before + 1
 
 
 def test_shutdown_ends_an_idle_connection() -> None:

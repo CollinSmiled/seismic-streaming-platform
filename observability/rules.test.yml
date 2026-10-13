@@ -1,0 +1,88 @@
+rule_files:
+  - alerts.yml
+evaluation_interval: 1m
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'up{job="seismic-api",instance="api:8000"}'
+        values: '1 0 0 0 1 1'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: SeismicTargetDown
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: SeismicTargetDown
+        exp_alerts:
+          - exp_labels:
+              job: seismic-api
+              instance: api:8000
+              severity: warning
+            exp_annotations:
+              summary: seismic-api metrics endpoint is unreachable
+      - eval_time: 5m
+        alertname: SeismicTargetDown
+        exp_alerts: []
+  - interval: 1m
+    input_series:
+      - series: 'seismic_worker_ready{service="websocket"}'
+        values: '1 0 0 0 1'
+      - series: 'seismic_api_database_ready{job="seismic-api"}'
+        values: '1 0 0 0 1'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: SeismicWorkerUnready
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: SeismicWorkerUnready
+        exp_alerts:
+          - exp_labels:
+              service: websocket
+              severity: warning
+            exp_annotations:
+              summary: websocket worker is unready
+      - eval_time: 3m
+        alertname: SeismicApiDatabaseUnavailable
+        exp_alerts:
+          - exp_labels:
+              job: seismic-api
+              severity: warning
+            exp_annotations:
+              summary: API cannot query PostgreSQL
+      - eval_time: 4m
+        alertname: SeismicApiDatabaseUnavailable
+        exp_alerts: []
+  - interval: 1m
+    input_series:
+      - series: 'seismic_worker_failures_total{service="processor"}'
+        values: '0 1 2 3 4 4 4 4 4'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: SeismicWorkerRepeatedFailures
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: SeismicWorkerRepeatedFailures
+        exp_alerts:
+          - exp_labels:
+              service: processor
+              severity: warning
+            exp_annotations:
+              summary: processor has repeated failures
+      - eval_time: 8m
+        alertname: SeismicWorkerRepeatedFailures
+        exp_alerts: []
+  - interval: 1m
+    input_series:
+      - series: 'seismic_worker_last_success_unixtime{service="reconciliation"}'
+        values: '1+0x15'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: SeismicReconciliationStalled
+        exp_alerts: []
+      - eval_time: 13m
+        alertname: SeismicReconciliationStalled
+        exp_alerts:
+          - exp_labels:
+              service: reconciliation
+              severity: warning
+            exp_annotations:
+              summary: FDSN reconciliation has not completed for ten minutes

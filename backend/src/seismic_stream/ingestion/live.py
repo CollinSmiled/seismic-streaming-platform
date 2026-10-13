@@ -19,13 +19,23 @@ from seismic_stream.ingestion.emsc import (
     parse_emsc_notification,
 )
 from seismic_stream.ingestion.publisher import KafkaDeliveryError, KafkaEventPublisher
+from seismic_stream.observability import (
+    SOURCE_EVENTS,
+    WorkerStatus,
+    configure_logging,
+    start_worker_http,
+)
 
 EMSC_WEBSOCKET_URL = "wss://www.seismicportal.eu/standing_order/websocket"
 LOGGER = logging.getLogger(__name__)
 
 
 def ingest_connection(
-    url: str, publish: Callable[[EarthquakeEvent], object], *, stop: Event | None = None
+    url: str,
+    publish: Callable[[EarthquakeEvent], object],
+    *,
+    stop: Event | None = None,
+    status: WorkerStatus | None = None,
 ) -> int:
     """Read one connection, pausing upstream reads until Kafka acknowledges."""
     stop = stop or Event()
@@ -41,23 +51,33 @@ def ingest_connection(
         max_queue=4,
     ) as websocket:
         LOGGER.info("Connected to EMSC WebSocket")
-        while not stop.is_set():
-            try:
-                raw = websocket.recv(timeout=1)
-            except TimeoutError:
-                continue
-            except ConnectionClosed:
-                break
-            try:
-                event = parse_emsc_notification(raw, ingested_at=datetime.now(UTC))
-            except (SourceMessageError, ValidationError) as error:
-                LOGGER.warning(
-                    "Ignored invalid EMSC notification: %s", type(error).__name__
-                )
-                continue
-            publish(event)
-            acknowledged += 1
-            LOGGER.info("Kafka acknowledged EMSC event %s", event.event_id)
+        if status is not None:
+            status.set_ready(True)
+        try:
+            while not stop.is_set():
+                try:
+                    raw = websocket.recv(timeout=1)
+                except TimeoutError:
+                    continue
+                except ConnectionClosed:
+                    break
+                try:
+                    event = parse_emsc_notification(raw, ingested_at=datetime.now(UTC))
+                except (SourceMessageError, ValidationError) as error:
+                    SOURCE_EVENTS.labels("websocket", "invalid").inc()
+                    LOGGER.warning(
+                        "Ignored invalid EMSC notification: %s", type(error).__name__
+                    )
+                    continue
+                publish(event)
+                SOURCE_EVENTS.labels("websocket", "acknowledged").inc()
+                if status is not None:
+                    status.succeeded()
+                acknowledged += 1
+                LOGGER.info("Kafka acknowledged EMSC event %s", event.event_id)
+        finally:
+            if status is not None:
+                status.set_ready(False)
     return acknowledged
 
 
@@ -68,6 +88,7 @@ def ingest_forever(
     stop: Event,
     retry_min_seconds: float = 1,
     retry_max_seconds: float = 30,
+    status: WorkerStatus | None = None,
 ) -> None:
     """Reconnect after source or Kafka failures with a bounded exponential delay."""
     if retry_min_seconds <= 0 or retry_max_seconds < retry_min_seconds:
@@ -75,10 +96,12 @@ def ingest_forever(
     delay = retry_min_seconds
     while not stop.is_set():
         try:
-            acknowledged = ingest_connection(url, publish, stop=stop)
+            acknowledged = ingest_connection(url, publish, stop=stop, status=status)
             if acknowledged:
                 delay = retry_min_seconds
             if not stop.is_set():
+                if status is not None:
+                    status.failed()
                 LOGGER.warning("EMSC WebSocket closed; reconnecting")
         except (
             OSError,
@@ -90,6 +113,8 @@ def ingest_forever(
         ) as error:
             if stop.is_set():
                 break
+            if status is not None:
+                status.failed()
             LOGGER.warning("EMSC ingestion interrupted: %s", type(error).__name__)
         if stop.wait(delay):
             break
@@ -109,9 +134,7 @@ def main() -> None:
     )
     parser.add_argument("--topic", default=TOPIC_NAME)
     args = parser.parse_args()
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s"
-    )
+    configure_logging("websocket")
 
     stop = Event()
 
@@ -121,9 +144,14 @@ def main() -> None:
     signal.signal(signal.SIGINT, request_stop)
     signal.signal(signal.SIGTERM, request_stop)
     publisher = KafkaEventPublisher(args.bootstrap_server, topic=args.topic)
+    status = WorkerStatus("websocket")
+    monitor = start_worker_http(status, port=9102)
     try:
-        ingest_forever(args.url, publisher.publish, stop=stop)
+        ingest_forever(args.url, publisher.publish, stop=stop, status=status)
     finally:
+        status.set_ready(False)
+        monitor.shutdown()
+        monitor.server_close()
         publisher.close()
 
 
