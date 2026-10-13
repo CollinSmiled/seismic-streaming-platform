@@ -23,6 +23,8 @@ dist/
 build/
 coverage/
 *.tsbuildinfo
+playwright-report/
+test-results/
 
 # Local tooling and operating systems
 .idea/

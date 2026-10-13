@@ -60,7 +60,7 @@ jobs:
   infrastructure:
     name: infrastructure
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - run: docker compose config --quiet
@@ -81,15 +81,41 @@ jobs:
         env:
           KAFKA_BOOTSTRAP_SERVERS: 127.0.0.1:9092
           DATABASE_URL: postgresql://seismic:local-dev-only@127.0.0.1:5432/seismic
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - run: npx playwright install --with-deps --only-shell chromium
+        working-directory: frontend
+      - name: Prepare browser pipeline
+        run: |
+          docker compose exec -T kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --topic earthquake.events.v1.browser-test --partitions 1 --replication-factor 1
+          cd backend
+          uv run --frozen alembic upgrade head
+          uv run --frozen python -m seismic_stream.processor.worker --topic earthquake.events.v1.browser-test > /tmp/seismic-processor.log 2>&1 &
+          echo $! > /tmp/seismic-processor.pid
+          uv run --frozen uvicorn seismic_stream.api.app:app --host 0.0.0.0 --port 8000 > /tmp/seismic-api.log 2>&1 &
+          echo $! > /tmp/seismic-api.pid
+          uv run --frozen python -m seismic_stream.ingestion.fixture_producer --fixture tests/fixtures/emsc_catalogue_capture.json --ingested-at 2026-10-03T17:00:00Z --topic earthquake.events.v1.browser-test
+        env:
+          KAFKA_BOOTSTRAP_SERVERS: 127.0.0.1:9092
+          DATABASE_URL: postgresql://seismic:local-dev-only@127.0.0.1:5432/seismic
+      - run: npm run test:e2e
+        working-directory: frontend
+        env:
+          KAFKA_BOOTSTRAP_SERVERS: 127.0.0.1:9092
+          E2E_KAFKA_TOPIC: earthquake.events.v1.browser-test
       - run: docker compose run --rm --no-deps --entrypoint promtool prometheus check config /etc/prometheus/prometheus.yml
       - run: docker compose run --rm --no-deps --entrypoint promtool prometheus check rules /etc/prometheus/alerts.yml
       - run: docker compose run --rm --no-deps --entrypoint promtool prometheus test rules /etc/prometheus/rules.test.yml
       - run: docker compose up -d --wait prometheus grafana
-      - name: Start API for scrape smoke check
-        run: uv run --frozen uvicorn seismic_stream.api.app:app --host 0.0.0.0 --port 8000 > /tmp/seismic-api.log 2>&1 &
-        working-directory: backend
-        env:
-          DATABASE_URL: postgresql://seismic:local-dev-only@127.0.0.1:5432/seismic
       - run: python scripts/verify_observability.py
       - if: always()
-        run: docker compose down -v
+        run: |
+          for name in seismic-api seismic-processor; do
+            if test -f "/tmp/$name.pid"; then kill "$(cat "/tmp/$name.pid")" || true; fi
+          done
+          docker compose down -v
