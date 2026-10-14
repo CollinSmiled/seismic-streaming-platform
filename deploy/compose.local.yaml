@@ -1,5 +1,8 @@
 # Local browser convenience; production uses compose.yaml and its HTTPS gateway.
 services:
+  prometheus:
+    ports:
+      - "127.0.0.1:9090:9090"
   web:
     ports: !override
       - "127.0.0.1:8080:8080"

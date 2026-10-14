@@ -14,7 +14,7 @@ With Docker Desktop running in Linux-container mode, run this from the repositor
 .\start.cmd
 ```
 
-The starter uses `backend/.venv` when available, or uses uv to select the project's Python 3.12 environment. On Linux/macOS, use Python 3.12+ with `python scripts/local_stack.py` instead. This builds and starts Kafka, PostgreSQL, migrations, the processor, live EMSC ingestion, catalogue recovery, the API, React, Prometheus and Grafana. Open the app at **http://localhost:8080** and Grafana at **http://localhost:3000**. Grafana first asks for gateway credentials and then its own login; both are saved in the ignored `deploy/.local/access.txt`. Passwords are generated once and reused. The launcher reads your public Mapbox token from `frontend/.env.local` or `VITE_MAPBOX_ACCESS_TOKEN`; rerun after changing it to rebuild the map configuration.
+The starter uses `backend/.venv` when available, or uses uv to select the project's Python 3.12 environment. On Linux/macOS, use Python 3.12+ with `python scripts/local_stack.py` instead. This builds and starts Kafka, PostgreSQL, migrations, the processor, live EMSC ingestion, catalogue recovery, the API, React, Prometheus and Grafana. Open the app at **http://localhost:8080**, Grafana at **http://localhost:3000**, and Prometheus at **http://localhost:9090**. Grafana first asks for gateway credentials and then its own login; both are saved in the ignored `deploy/.local/access.txt`. Passwords are generated once and reused. The launcher reads your public Mapbox token from `frontend/.env.local` or `VITE_MAPBOX_ACCESS_TOKEN`; rerun after changing it to rebuild the map configuration.
 
 ```powershell
 .\start.cmd stop
