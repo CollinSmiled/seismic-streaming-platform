@@ -91,7 +91,8 @@ def prepare() -> None:
     )
     access = STATE / "access.txt"
     access.write_text(
-        "Frontend: http://localhost:8080\nGrafana: http://localhost:3000\n\n"
+        "Frontend: http://localhost:8080\nGrafana: http://localhost:3000\n"
+        "Prometheus: http://localhost:9090\n\n"
         "Grafana gateway username: observer\n"
         f"Grafana gateway password: {gateway_password.read_text()}\n\n"
         "Grafana login username: admin\n"
@@ -135,7 +136,10 @@ def main() -> None:
             timeout=300,
             capture=False,
         )
-        print("\nFrontend: http://localhost:8080\nGrafana: http://localhost:3000")
+        print(
+            "\nFrontend: http://localhost:8080\nGrafana: http://localhost:3000\n"
+            "Prometheus: http://localhost:9090"
+        )
         print(f"Grafana credentials: {STATE / 'access.txt'}")
         if not token:
             print(
