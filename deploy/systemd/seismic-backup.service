@@ -1,0 +1,11 @@
+[Unit]
+Description=Back up the seismic PostgreSQL database
+Requires=docker.service
+After=docker.service seismic-platform.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/seismic
+UMask=0077
+ExecStart=/usr/bin/python3 scripts/database_backup.py --env-file deploy/.env --project seismic-production backup --directory /var/backups/seismic
+TimeoutStartSec=240

@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily seismic PostgreSQL backup
+
+[Timer]
+OnCalendar=*-*-* 02:15:00 UTC
+Persistent=true
+RandomizedDelaySec=300
+Unit=seismic-backup.service
+
+[Install]
+WantedBy=timers.target

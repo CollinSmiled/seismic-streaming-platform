@@ -1,0 +1,48 @@
+{
+	admin off
+	http_port 8080
+	https_port 8443
+	skip_install_trust
+}
+
+(security_headers) {
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+}
+
+{$APP_DOMAIN} {
+	tls {$TLS_ISSUER}
+	import security_headers
+	@api path /api/v1/* /health /ready
+	handle @api {
+		reverse_proxy api:8000
+	}
+	@private path /metrics /docs /redoc /openapi.json
+	handle @private {
+		respond 404
+	}
+	handle {
+		root * /srv
+		encode zstd gzip
+		try_files {path} /index.html
+		file_server
+	}
+}
+
+{$GRAFANA_DOMAIN} {
+	tls {$TLS_ISSUER}
+	import security_headers
+	# This file contains a basic_auth block with a bcrypt hash, never plaintext.
+	import /run/secrets/grafana_gateway_auth
+	reverse_proxy grafana:3000 {
+		# Grafana still requires its own login; do not forward the gateway password.
+		header_up -Authorization
+	}
+}
+
+http://127.0.0.1:8081 {
+	respond /health "ok" 200
+}

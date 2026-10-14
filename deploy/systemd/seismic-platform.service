@@ -1,0 +1,17 @@
+[Unit]
+Description=Seismic streaming platform
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/seismic
+ExecStart=/usr/bin/docker compose --env-file deploy/.env --project-name seismic-production -f deploy/compose.yaml --profile live up -d --wait --wait-timeout 180 --no-build
+ExecStop=/usr/bin/docker compose --env-file deploy/.env --project-name seismic-production -f deploy/compose.yaml --profile live stop
+TimeoutStartSec=300
+TimeoutStopSec=120
+
+[Install]
+WantedBy=multi-user.target
