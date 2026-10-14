@@ -143,7 +143,25 @@ def create_app(database_pool: ConnectionPool | None = None) -> FastAPI:
         min_lat: Annotated[float | None, Query(ge=-90, le=90)] = None,
         max_lon: Annotated[float | None, Query(ge=-180, le=180)] = None,
         max_lat: Annotated[float | None, Query(ge=-90, le=90)] = None,
+        min_magnitude: Annotated[float | None, Query(ge=-2, le=10)] = None,
+        max_magnitude: Annotated[float | None, Query(ge=-2, le=10)] = None,
+        min_depth: Annotated[float | None, Query(ge=-10, le=1000)] = None,
+        max_depth: Annotated[float | None, Query(ge=-10, le=1000)] = None,
+        region: Annotated[str | None, Query(max_length=120)] = None,
     ) -> EarthquakePage:
+        for name, lower, upper in (
+            ("magnitude", min_magnitude, max_magnitude),
+            ("depth", min_depth, max_depth),
+        ):
+            if any(
+                value is not None and not math.isfinite(value)
+                for value in (lower, upper)
+            ):
+                raise HTTPException(status_code=422, detail=f"{name} must be finite")
+            if lower is not None and upper is not None and lower > upper:
+                raise HTTPException(
+                    status_code=422, detail=f"Minimum {name} must not exceed maximum"
+                )
         start_time = aware(start_time, "start_time")
         end_time = aware(end_time, "end_time")
         if start_time is not None and end_time is not None and start_time > end_time:
@@ -182,6 +200,11 @@ def create_app(database_pool: ConnectionPool | None = None) -> FastAPI:
                 start_time=start_time,
                 end_time=end_time,
                 bounds=bounds,
+                min_magnitude=min_magnitude,
+                max_magnitude=max_magnitude,
+                min_depth=min_depth,
+                max_depth=max_depth,
+                region=region.strip() if region else None,
             )
         except (psycopg.Error, PoolTimeout) as error:
             raise HTTPException(

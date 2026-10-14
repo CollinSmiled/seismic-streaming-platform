@@ -55,6 +55,19 @@ def api_client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
                             "event_time": datetime(2026, 10, 3, hour, tzinfo=UTC),
                             "longitude": longitude,
                             "latitude": latitude,
+                            "magnitude": {
+                                "event-a": 1.0,
+                                "event-b": 3.0,
+                                "event-c": 5.0,
+                                "event-d": None,
+                            }[event_id],
+                            "depth_km": {
+                                "event-a": 10.0,
+                                "event-b": 30.0,
+                                "event-c": 50.0,
+                                "event-d": None,
+                            }[event_id],
+                            "region": "Island_100%" if hour == 0 else "TEST REGION",
                         }
                     )
                     assert store.write(event)
@@ -133,6 +146,14 @@ def test_time_and_antimeridian_bounds(api_client: TestClient) -> None:
         {"min_lon": 0},
         {"min_lon": 0, "max_lon": 10, "min_lat": 20, "max_lat": 10},
         {"min_lon": 0, "max_lon": 200, "min_lat": 0, "max_lat": 10},
+        {"min_magnitude": 6, "max_magnitude": 2},
+        {"min_magnitude": "nan"},
+        {"max_magnitude": "inf"},
+        {"max_magnitude": 11},
+        {"min_depth": 40, "max_depth": 10},
+        {"min_depth": -11},
+        {"max_depth": 1001},
+        {"region": "x" * 121},
     ],
 )
 def test_bad_query_returns_validation_error(
@@ -141,6 +162,58 @@ def test_bad_query_returns_validation_error(
     response = api_client.get("/api/v1/earthquakes", params=parameters)
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "invalid_request"
+
+
+@pytest.mark.integration
+def test_combined_filters_unknown_values_and_filtered_pagination(
+    api_client: TestClient,
+) -> None:
+    result = api_client.get(
+        "/api/v1/earthquakes",
+        params={
+            "min_magnitude": 3,
+            "max_magnitude": 5,
+            "min_depth": 30,
+            "max_depth": 50,
+            "region": " test region ",
+            "start_time": "2026-10-03T01:00:00Z",
+            "min_lon": 0,
+            "max_lon": 15,
+            "min_lat": -5,
+            "max_lat": 5,
+        },
+    )
+    assert result.status_code == 200
+    assert [event["event_id"] for event in result.json()["items"]] == ["event-c"]
+    first = api_client.get(
+        "/api/v1/earthquakes", params={"min_magnitude": 1, "limit": 1}
+    ).json()
+    second = api_client.get(
+        "/api/v1/earthquakes",
+        params={"min_magnitude": 1, "limit": 1, "cursor": first["next_cursor"]},
+    ).json()
+    assert [first["items"][0]["event_id"], second["items"][0]["event_id"]] == [
+        "event-c",
+        "event-b",
+    ]
+    assert len(api_client.get("/api/v1/earthquakes").json()["items"]) == 4
+    assert (
+        len(
+            api_client.get("/api/v1/earthquakes", params={"max_depth": 100}).json()[
+                "items"
+            ]
+        )
+        == 3
+    )
+    for region, expected in (("island_100%", 2), ("%", 2), ("' OR 1=1 --", 0)):
+        assert (
+            len(
+                api_client.get("/api/v1/earthquakes", params={"region": region}).json()[
+                    "items"
+                ]
+            )
+            == expected
+        )
 
 
 @pytest.mark.integration

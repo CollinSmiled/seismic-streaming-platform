@@ -3,8 +3,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import EarthquakeMap from './EarthquakeMap'
 import type { Earthquake } from './api'
 
-const { addSource, addLayer, remove, easeTo } = vi.hoisted(() => ({
-  addSource: vi.fn(), addLayer: vi.fn(), remove: vi.fn(), easeTo: vi.fn(),
+const { addSource, addLayer, remove, easeTo, fitBounds } = vi.hoisted(() => ({
+  addSource: vi.fn(), addLayer: vi.fn(), remove: vi.fn(), easeTo: vi.fn(), fitBounds: vi.fn(),
 }))
 
 vi.mock('mapbox-gl', () => ({
@@ -18,6 +18,7 @@ vi.mock('mapbox-gl', () => ({
       getSource() { return undefined }
       getZoom() { return 1.4 }
       easeTo = easeTo
+      fitBounds = fitBounds
       remove = remove
     },
   },
@@ -42,5 +43,9 @@ describe('EarthquakeMap', () => {
     expect(addLayer).toHaveBeenCalledWith(expect.objectContaining({ type: 'circle' }))
     view.rerender(<EarthquakeMap events={[event]} selectedId="emsc-123" focus={{ id: 'emsc-123', sequence: 1 }} onSelect={() => {}} />)
     await waitFor(() => expect(easeTo).toHaveBeenCalledWith({ center: [20.25, 10.5], zoom: 5, duration: 850 }))
+    view.rerender(<EarthquakeMap events={[event]} selectedId="emsc-123" focus={{ id: 'emsc-123', sequence: 1 }} recenter={1} onSelect={() => {}} />)
+    expect(fitBounds).toHaveBeenCalledWith([[20.25, 10.5], [20.25, 10.5]], { padding: 60, maxZoom: 6, duration: 650 })
+    view.rerender(<EarthquakeMap events={[]} selectedId={null} focus={null} recenter={2} onSelect={() => {}} />)
+    expect(easeTo).toHaveBeenLastCalledWith({ center: [0, 15], zoom: 1.4, duration: 650 })
   })
 })

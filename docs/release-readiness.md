@@ -81,7 +81,9 @@ $env:KAFKA_BOOTSTRAP_SERVERS = '127.0.0.1:9092'
 npm run test:e2e
 ```
 
-The test publishes one additional unique event, waits for the SSE notice, and opens its details. Stop the three running processes with Ctrl+C when finished. To remove only the dedicated rehearsal data, run these commands from the repository root:
+The pipeline test publishes one additional unique event, waits for the SSE notice, and opens its details. Catalogue browser checks use intercepted API fixtures to verify filtering requests, independent result scrolling, fixed desktop/mobile viewport sizes and Escape dismissal of the filter dialog. You can run just those checks against the container app with `PLAYWRIGHT_BASE_URL=http://localhost:8080` and `npm run test:e2e -- catalogue.spec.ts`.
+
+Stop the three running processes with Ctrl+C when finished. To remove only the dedicated rehearsal data, run these commands from the repository root:
 
 ```powershell
 docker compose exec -T postgres psql -U seismic -d seismic -c 'DROP DATABASE seismic_browser_release_test WITH (FORCE)'

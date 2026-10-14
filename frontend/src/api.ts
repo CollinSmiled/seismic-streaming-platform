@@ -1,3 +1,6 @@
+import { emptyFilters, filterQuery } from './filters'
+import type { Filters } from './filters'
+
 export interface Earthquake {
   event_id: string
   source: string
@@ -32,9 +35,10 @@ export interface ChangePage {
   next_cursor: number | null
 }
 
-export async function fetchEarthquakes(cursor?: string, signal?: AbortSignal): Promise<EarthquakePage> {
+export async function fetchEarthquakes(cursor?: string, signal?: AbortSignal, filters: Filters = emptyFilters): Promise<EarthquakePage> {
   const query = new URLSearchParams({ limit: '100' })
   if (cursor) query.set('cursor', cursor)
+  filterQuery(filters).forEach((value, key) => query.set(key, value))
   const response = await fetch(`/api/v1/earthquakes?${query}`, { signal })
   if (!response.ok) throw new Error(`Earthquake request failed (${response.status})`)
   return response.json() as Promise<EarthquakePage>

@@ -92,9 +92,28 @@ def list_earthquakes(
     start_time: datetime | None,
     end_time: datetime | None,
     bounds: tuple[float, float, float, float] | None,
+    min_magnitude: float | None = None,
+    max_magnitude: float | None = None,
+    min_depth: float | None = None,
+    max_depth: float | None = None,
+    region: str | None = None,
 ) -> EarthquakePage:
     clauses: list[str] = []
     parameters: dict[str, Any] = {"fetch_limit": limit + 1}
+    for column, lower, upper in (
+        ("magnitude", min_magnitude, max_magnitude),
+        ("depth_km", min_depth, max_depth),
+    ):
+        if lower is not None:
+            clauses.append(f"{column} >= %({column}_min)s")
+            parameters[f"{column}_min"] = lower
+        if upper is not None:
+            clauses.append(f"{column} <= %({column}_max)s")
+            parameters[f"{column}_max"] = upper
+    if region:
+        # strpos treats %, _ and backslashes literally, unlike a LIKE pattern.
+        clauses.append("strpos(lower(region), lower(%(region)s)) > 0")
+        parameters["region"] = region
     if cursor is not None:
         clauses.append("(event_time, event_id) < (%(cursor_time)s, %(cursor_id)s)")
         parameters["cursor_time"], parameters["cursor_id"] = cursor
