@@ -211,7 +211,7 @@ services:
       timeout: 5s
       retries: 12
     read_only: true
-    tmpfs: [/tmp:size=32m,mode=1777]
+    tmpfs: ["/tmp:size=32m,mode=1777"]
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     restart: unless-stopped

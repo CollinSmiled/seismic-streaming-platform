@@ -113,6 +113,8 @@ docker compose --env-file deploy/.env -p seismic-production -f deploy/compose.ya
 
 The tool refuses the running `seismic` database and existing targets, and never drops databases. If restore fails, inspect the partially restored new database before deciding what to remove. A validated restoration is the evidence of a usable backup; the local rehearsal compares the restored rows/cursor/schema to the source. Real disaster recovery needs a controlled maintenance window, an image compatible with the restored schema, and a Kafka offset/replay decision. Do not simply point a running processor at an older snapshot: its newer committed offsets can skip events missing from that snapshot.
 
+The restored test database uses administrator ownership and omits original grants. Before a real cutover, recreate the intended role ownership/permissions and verify application reads and writes against the restored database. The automated comparison verifies the archive's contents rather than switching running services to that database.
+
 Database passwords and Grafana bootstrap admin credentials initialize fresh volumes. Editing their secret files does not rotate credentials already stored in an existing database. Plan and execute credential rotation inside the service before replacing the corresponding file. Keep Grafana's encryption key stable and retain the production Caddy data volume.
 
 ## Remaining deployment work

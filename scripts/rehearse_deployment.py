@@ -176,7 +176,10 @@ def main() -> None:
             else [json.loads(line) for line in states_text.splitlines()]
         )
         assert all(
-            not state.get("Publishers") for state in states if state["Service"] != "web"
+            not publisher.get("PublishedPort")
+            for state in states
+            if state["Service"] != "web"
+            for publisher in (state.get("Publishers") or [])
         )
         record("API, processor and web run as UID 10001; only web publishes host ports")
         compose.run(
