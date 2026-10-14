@@ -19,12 +19,19 @@ class Compose:
             str(ROOT / "deploy" / "compose.yaml"),
         ]
 
-    def run(self, *args: str, timeout: int = 180, capture: bool = True) -> bytes:
+    def run(
+        self,
+        *args: str,
+        timeout: int = 180,
+        capture: bool = True,
+        input_bytes: bytes | None = None,
+    ) -> bytes:
         result = subprocess.run(
             [*self.command, *args],
             cwd=ROOT,
             check=True,
             timeout=timeout,
+            input=input_bytes,
             stdout=subprocess.PIPE if capture else None,
         )
         return result.stdout or b""

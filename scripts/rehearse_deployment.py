@@ -241,8 +241,17 @@ def main() -> None:
         )
 
         def publish(catalogue: dict[str, Any]) -> None:
-            (work / "fixture.json").write_text(json.dumps(catalogue), encoding="utf-8")
-            compose.run("cp", str(work / "fixture.json"), "api:/tmp/rehearsal.json")
+            # Write through the process into its writable tmpfs. Docker archive
+            # copy rejects writes to a container with a read-only rootfs.
+            compose.run(
+                "exec",
+                "-T",
+                "api",
+                "python",
+                "-c",
+                "import sys; from pathlib import Path; Path('/tmp/rehearsal.json').write_bytes(sys.stdin.buffer.read())",
+                input_bytes=json.dumps(catalogue).encode(),
+            )
             compose.run(
                 "exec",
                 "-T",
