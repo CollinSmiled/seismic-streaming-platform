@@ -33,6 +33,10 @@ dev = [
 testpaths = ["tests"]
 markers = ["integration: requires a running Kafka broker"]
 
+[tool.uv]
+# Container builds install a wheel; source changes must invalidate that wheel too.
+cache-keys = [{ file = "pyproject.toml" }, { file = "src/**/*.py" }]
+
 [tool.ruff]
 line-length = 88
 target-version = "py312"

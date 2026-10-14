@@ -15,6 +15,9 @@ Run the API with `DATABASE_URL` pointing at a migrated PostgreSQL database. All 
 | `limit` | Page size, 1–200; default 100. |
 | `cursor` | Opaque `next_cursor` from the previous page. |
 | `start_time`, `end_time` | Inclusive event-time range. |
+| `min_magnitude`, `max_magnitude` | Inclusive magnitude range, −2 to 10. |
+| `min_depth`, `max_depth` | Inclusive depth range in km, −10 to 1000 (negative depths can be reported). |
+| `region` | Literal, case-insensitive substring of the EMSC region name, up to 120 characters. |
 | `min_lon`, `min_lat`, `max_lon`, `max_lat` | Optional map bounds; supply all four. A longitude range crossing 180° uses `min_lon > max_lon`. |
 
 Events sort newest first by `(event_time, event_id)`. A page contains `items`, `next_cursor` (null when there are no more rows), and `latest_change_cursor`. The cursor is the committed change position of the same database snapshot as the listed events. For example:
@@ -34,7 +37,15 @@ Events sort newest first by `(event_time, event_id)`. A page contains `items`, `
 }
 ```
 
-The cursor is a position in the current-event table, not a snapshot. New events may appear before that position while a user pages. The page limit bounds one response; the UI loads further pages only when requested. The API does not filter by magnitude yet.
+The cursor is a position in the current-event table, not a snapshot. New events may appear before that position while a user pages. The page limit bounds one response; the UI loads further pages only when requested. Keep the same filters when following a cursor; changing filters starts a new query without a cursor. Filters combine with AND and apply in PostgreSQL before pagination. Missing magnitude/depth values remain visible without a corresponding range and are excluded when that field is bounded. Empty region text is unrestricted; `%` and `_` are literal characters, not wildcards. Reversed numeric/time/latitude ranges, incomplete geographic bounds and nonfinite numbers return 422.
+
+## Browser filtering and navigation
+
+The Filters form offers magnitude and depth ranges, region text, geographic presets and editable bounds, and UTC dates with 24-hour/7-day/30-day shortcuts. Presets describe approximate bounding rectangles, not political borders. Time shortcuts fix a start time when selected and leave the end open for live arrivals; reapply a shortcut to move the start forward. Geographic and region filters combine. Clear all returns to the worldwide catalogue.
+
+Filters are applied to historical reads and to every live revision. A revision leaving the selected range removes its marker, result and pending notice; a matching new arrival can raise a notice. The change feed remains unfiltered so the browser advances its cursor even for events outside the selected area. Results show the number loaded, not a catalogue-wide total; use Load more to request the next filtered page.
+
+The app fills one viewport. Results scroll independently and details can scroll within their panel. Smaller screens use Map/Events/Details view buttons. Recenter map fits the loaded results (including antimeridian crossings), or restores the world view when none are loaded; it does not imply all matching pages are already loaded. Selecting an event centers on it. Neither live arrivals nor changing filters move the camera automatically.
 
 ## Single event
 

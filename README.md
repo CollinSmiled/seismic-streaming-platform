@@ -23,6 +23,10 @@ The starter uses `backend/.venv` when available, or uses uv to select the projec
 
 Stop retains data and credentials. This independent `seismic-local` stack uses localhost HTTP and loopback ports; the production stack retains HTTPS. Keep `deploy/.local` so the saved credentials continue to match the persistent volumes. URL-restricted Mapbox tokens must permit `http://localhost:8080`. Use [Compose v2.24.4+](https://docs.docker.com/reference/compose-file/merge/#replace-value) for the local override. This container mode serves a built frontend; use the source-based setup below when you need hot reload.
 
+## Explore earthquakes
+
+Use **Filters** above the earthquake list to combine magnitude, depth, UTC time, region name, and geographic bounds. Geographic presets are approximate rectangles. Filters search stored events before pagination and also apply to live updates. **Load more** requests another filtered page; the displayed count is the number loaded. **Recenter map** fits those loaded results. The page stays within the viewport, with a separate scrollbar for the list and Map/Events/Details views on smaller screens. See [filter behavior](docs/api.md#browser-filtering-and-navigation) for details.
+
 ## Requirements
 
 - Docker Desktop or Docker Engine with Compose
