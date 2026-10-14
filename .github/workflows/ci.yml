@@ -14,6 +14,17 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  containers:
+    name: containers
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: '3.12'
+      - run: python scripts/rehearse_deployment.py
+
   backend:
     name: backend
     runs-on: ubuntu-24.04
@@ -32,9 +43,9 @@ jobs:
           enable-cache: true
           cache-dependency-glob: backend/uv.lock
       - run: uv sync --frozen --python 3.12
-      - run: uv run --frozen ruff check .
-      - run: uv run --frozen ruff format --check .
-      - run: uv run --frozen mypy src tests
+      - run: uv run --frozen ruff check . ../scripts/database_backup.py ../scripts/deployment_support.py ../scripts/rehearse_deployment.py
+      - run: uv run --frozen ruff format --check . ../scripts/database_backup.py ../scripts/deployment_support.py ../scripts/rehearse_deployment.py
+      - run: uv run --frozen mypy src tests container_entrypoint.py ../scripts/database_backup.py ../scripts/deployment_support.py ../scripts/rehearse_deployment.py
       - run: uv run --frozen pytest -q
 
   frontend:

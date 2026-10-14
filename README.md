@@ -120,6 +120,8 @@ Vite prints the local frontend URL and proxies `/api` requests to `http://127.0.
 
 ## Checks
 
+For the containerized production package, HTTPS and backup recovery rehearsal, see [deployment instructions](docs/deployment.md). It runs independently of the developer stack and needs no VM or domain. From the repository root, run `python scripts/rehearse_deployment.py` with Docker Desktop running.
+
 For a clean-checkout rehearsal that includes Kafka, PostgreSQL, fault recovery, and a real Chromium browser, follow [the release-readiness runbook](docs/release-readiness.md). The backend integration tests need both `DATABASE_URL` and `KAFKA_BOOTSTRAP_SERVERS`; otherwise pytest skips them. [The storage schema](docs/schema.md), [event contract](docs/event-contract.md), and [API reference](docs/api.md) describe the data those checks exercise.
 
 ```powershell

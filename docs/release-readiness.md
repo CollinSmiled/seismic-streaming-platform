@@ -97,4 +97,4 @@ docker compose exec -T kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server k
 - A quiet WebSocket cannot prove Kafka availability until it publishes. Prometheus alerts are visible locally, but no external notification receiver is configured.
 - CI runs the browser test without a Mapbox token, so it checks the event list, details, and live notice rather than rendered map tiles. The map component has its own tests; visual tiles need a public Mapbox token and manual review.
 - A real EMSC notification cannot be scheduled for CI. The upstream WebSocket handshake and an actual incoming event remain manual checks.
-- Production containers, HTTPS, backups, authentication/protected Grafana, deployment approval, and rollback are later increments. This rehearsal is for local and CI behavior.
+- The [production package rehearsal](deployment.md) checks containers, HTTPS, protected Grafana, persistence and database backup restoration. Public VM deployment, external backups, approval and rollback automation remain pending.

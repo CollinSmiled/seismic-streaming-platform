@@ -3,6 +3,8 @@
 import argparse
 import logging
 import os
+import signal
+from threading import Event
 
 from confluent_kafka import Consumer, KafkaError, KafkaException, Message, Producer
 from psycopg_pool import ConnectionPool
@@ -63,7 +65,9 @@ def run(
     database_url: str,
     topic: str,
     status: WorkerStatus | None = None,
+    stop: Event | None = None,
 ) -> None:
+    stop = stop if stop is not None else Event()
     consumer = Consumer(
         {
             "bootstrap.servers": bootstrap_server,
@@ -89,7 +93,7 @@ def run(
             consumer.subscribe([topic])
             if status is not None:
                 status.set_ready(True)
-            while True:
+            while not stop.is_set():
                 record = consumer.poll(1)
                 if record is None:
                     continue
@@ -123,6 +127,13 @@ def main() -> None:
     if not database_url:
         parser.error("DATABASE_URL is required")
     configure_logging("processor")
+    stop = Event()
+
+    def request_stop(_signal_number: int, _frame: object) -> None:
+        stop.set()
+
+    signal.signal(signal.SIGTERM, request_stop)
+    signal.signal(signal.SIGINT, request_stop)
     status = WorkerStatus("processor")
     monitor = start_worker_http(status, port=9101)
     try:
@@ -131,6 +142,7 @@ def main() -> None:
             database_url=database_url,
             topic=args.topic,
             status=status,
+            stop=stop,
         )
     except Exception:
         LOGGER.exception("Processor stopped after a failure")
