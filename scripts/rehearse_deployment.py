@@ -275,6 +275,18 @@ def main() -> None:
         publish(fixture)
         wait_for(lambda: len(page()["items"]) == 2, "Fixture did not reach the API")
         before = page()
+        status, body, _ = request(
+            "/api/v1/earthquakes?min_magnitude=1&max_depth=40&region=GIBRALTAR&limit=1"
+        )
+        filtered = json.loads(body)
+        assert status == 200 and len(filtered["items"]) == 1
+        assert filtered["items"][0]["event_id"] == "20261003_0000205"
+        status, body, _ = request("/api/v1/earthquakes?min_magnitude=5")
+        assert status == 200 and json.loads(body)["items"] == []
+        assert request("/api/v1/earthquakes?min_depth=50&max_depth=10")[0] == 422
+        record(
+            "Built API applies catalogue filters and rejects reversed ranges over HTTPS"
+        )
         stream = LocalHTTPS(APP, https_port, context=context, timeout=20)
         stream.request(
             "GET", f"/api/v1/earthquakes/stream?after={before['latest_change_cursor']}"
