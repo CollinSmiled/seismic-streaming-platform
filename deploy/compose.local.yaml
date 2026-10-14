@@ -1,0 +1,12 @@
+# Local browser convenience; production uses compose.yaml and its HTTPS gateway.
+services:
+  web:
+    ports: !override
+      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:3000:8082"
+    volumes:
+      - ./Caddyfile.local:/etc/caddy/Caddyfile:ro
+  grafana:
+    environment:
+      GF_SERVER_ROOT_URL: http://localhost:3000
+      GF_SECURITY_COOKIE_SECURE: "false"
