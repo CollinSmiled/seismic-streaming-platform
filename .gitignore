@@ -6,6 +6,7 @@
 *.key
 deploy/secrets/
 deploy/.rehearsal/
+deploy/.local/
 backups/
 
 # Python

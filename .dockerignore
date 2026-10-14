@@ -15,5 +15,6 @@ backend/tests
 frontend/e2e
 deploy/secrets
 deploy/.rehearsal
+deploy/.local
 backups
 *.log

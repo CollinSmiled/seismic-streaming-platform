@@ -7,7 +7,9 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class Compose:
-    def __init__(self, env_file: Path, project: str) -> None:
+    def __init__(
+        self, env_file: Path, project: str, overrides: tuple[Path, ...] = ()
+    ) -> None:
         self.command = [
             "docker",
             "compose",
@@ -18,6 +20,8 @@ class Compose:
             "-f",
             str(ROOT / "deploy" / "compose.yaml"),
         ]
+        for override in overrides:
+            self.command.extend(["-f", str(override.resolve())])
 
     def run(
         self,

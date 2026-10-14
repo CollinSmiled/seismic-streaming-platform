@@ -4,7 +4,24 @@ A real-time earthquake event platform being built around EMSC notifications, Kaf
 
 ## Current status
 
-The repository has fixture and live EMSC input to Kafka, FDSN gap recovery, a PostgreSQL projection, historical and live read APIs, a React map with live change notices, and local Prometheus/Grafana monitoring. The source-to-browser pipeline now has deterministic end-to-end and fault checks. Production packaging and deployment are still ahead.
+The repository has fixture and live EMSC input to Kafka, FDSN gap recovery, a PostgreSQL projection, historical and live read APIs, a React map with live change notices, and Prometheus/Grafana monitoring. The pipeline and production container package have deterministic recovery checks. Public VM deployment is still ahead.
+
+## Start everything locally
+
+With Docker Desktop running in Linux-container mode, run this from the repository root on Windows:
+
+```powershell
+.\start.cmd
+```
+
+The starter uses `backend/.venv` when available, or uses uv to select the project's Python 3.12 environment. On Linux/macOS, use Python 3.12+ with `python scripts/local_stack.py` instead. This builds and starts Kafka, PostgreSQL, migrations, the processor, live EMSC ingestion, catalogue recovery, the API, React, Prometheus and Grafana. Open the app at **http://localhost:8080** and Grafana at **http://localhost:3000**. Grafana first asks for gateway credentials and then its own login; both are saved in the ignored `deploy/.local/access.txt`. Passwords are generated once and reused. The launcher reads your public Mapbox token from `frontend/.env.local` or `VITE_MAPBOX_ACCESS_TOKEN`; rerun after changing it to rebuild the map configuration.
+
+```powershell
+.\start.cmd stop
+.\start.cmd status
+```
+
+Stop retains data and credentials. This independent `seismic-local` stack uses localhost HTTP and loopback ports; the production stack retains HTTPS. Keep `deploy/.local` so the saved credentials continue to match the persistent volumes. URL-restricted Mapbox tokens must permit `http://localhost:8080`. Use [Compose v2.24.4+](https://docs.docker.com/reference/compose-file/merge/#replace-value) for the local override. This container mode serves a built frontend; use the source-based setup below when you need hot reload.
 
 ## Requirements
 

@@ -43,9 +43,9 @@ jobs:
           enable-cache: true
           cache-dependency-glob: backend/uv.lock
       - run: uv sync --frozen --python 3.12
-      - run: uv run --frozen ruff check . ../scripts/database_backup.py ../scripts/deployment_support.py ../scripts/rehearse_deployment.py
-      - run: uv run --frozen ruff format --check . ../scripts/database_backup.py ../scripts/deployment_support.py ../scripts/rehearse_deployment.py
-      - run: uv run --frozen mypy src tests container_entrypoint.py ../scripts/database_backup.py ../scripts/deployment_support.py ../scripts/rehearse_deployment.py
+      - run: uv run --frozen ruff check . ../scripts/database_backup.py ../scripts/deployment_support.py ../scripts/rehearse_deployment.py ../scripts/local_stack.py
+      - run: uv run --frozen ruff format --check . ../scripts/database_backup.py ../scripts/deployment_support.py ../scripts/rehearse_deployment.py ../scripts/local_stack.py
+      - run: uv run --frozen mypy src tests container_entrypoint.py ../scripts/database_backup.py ../scripts/deployment_support.py ../scripts/rehearse_deployment.py ../scripts/local_stack.py
       - run: uv run --frozen pytest -q
 
   frontend:
