@@ -51,7 +51,7 @@ services:
     restart: unless-stopped
 
   prometheus:
-    image: prom/prometheus:v3.14.0
+    image: prom/prometheus:v3.15.1
     ports:
       - "127.0.0.1:${PROMETHEUS_PORT:-9090}:9090"
     extra_hosts:
